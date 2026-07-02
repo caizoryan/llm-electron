@@ -104,9 +104,18 @@ export async function runAgentTurn(messages, pipe) {
       }
     })
 
+    // Add assistant message to history
+    if (respondedContent || reasoningContent) {
+      // Add assistant message with tool calls to message history
+      messages.push({
+        role: 'assistant',
+        content: respondedContent,
+        reasoning_content: reasoningContent,
+      })
+    }
+
     // Handle tool calls if present
     if (toolCalls.length > 0) {
-			
       toolCalls.forEach(tool_call => {
         pipe(createEvent(EventTypes.TOOL_CALL, { tool_call: tool_call }))
       })
@@ -157,16 +166,6 @@ export async function runAgentTurn(messages, pipe) {
 
     }
 
-    // Add assistant message to history
-    if (respondedContent || reasoningContent) {
-      // Add assistant message with tool calls to message history
-      messages.push({
-        role: 'assistant',
-        content: respondedContent,
-        reasoning_content: reasoningContent,
-      })
-
-    }
 
 		if (toolCalls.length > 0){
       // Recursively continue with tool results
