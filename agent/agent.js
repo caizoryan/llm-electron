@@ -106,12 +106,19 @@ export async function runAgentTurn(messages, pipe) {
 
     // Handle tool calls if present
     if (toolCalls.length > 0) {
-      toolCalls.forEach(toolCall => {
-        pipe(createEvent(EventTypes.TOOL_CALL, { tool_call: toolCall }))
+			
+      toolCalls.forEach(tool_call => {
+        pipe(createEvent(EventTypes.TOOL_CALL, { tool_call: tool_call }))
       })
 
       // Execute tools
       for (const toolCall of toolCalls) {
+				messages.push({
+					role: 'assistant',
+					content: '',
+					tool_calls: [toolCall]
+				})
+
         try {
           const result = await toolExecutor(toolCall)
 
@@ -125,7 +132,7 @@ export async function runAgentTurn(messages, pipe) {
           // Notify UI of result
           pipe(createEvent(EventTypes.TOOL_RESULT, {
             tool_call_id: toolCall.id,
-						role: 'tool',
+            role: 'tool',
             content: result
           }))
 
@@ -141,7 +148,7 @@ export async function runAgentTurn(messages, pipe) {
           pipe(createEvent(EventTypes.TOOL_RESULT, {
             tool_call_id: toolCall.id,
 						role: 'tool',
-            content: result
+            content: errorResult
           }))
         }
       }
@@ -154,11 +161,15 @@ export async function runAgentTurn(messages, pipe) {
 
     // Add assistant message to history
     if (respondedContent || reasoningContent) {
+      // Add assistant message with tool calls to message history
       messages.push({
         role: 'assistant',
         content: respondedContent,
-        reasoning_content: reasoningContent
+        // reasoning_content: reasoningContent,
+        tool_calls: toolCalls
       })
+
+
     }
 
     pipe(createEvent(EventTypes.RESPONSE_END, {

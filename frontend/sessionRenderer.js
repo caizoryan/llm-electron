@@ -31,7 +31,6 @@ const parseSessionContent = (content) => {
 
 const STRATEGY = reactive('MD'); // 'RAW' | 'MD'
 
-// TODO: Make this a normal array
 let messages =[]
 const isAgentRunning = reactive(false)
 
@@ -42,10 +41,11 @@ let currentElement = undefined
 let startAgentMessageRender = () => {
 	currentContent = reactive('')
 	currentReasoning = reactive('')
-	currentElement = dom(['.session-item', {role: "assistant"}, 
+	currentElement = constructSessionItemElement(
+		'assistant',
 		thinkingBlock(currentReasoning),
-		['.el', memo(() => MD(currentContent.value()), [currentContent])]
-	])
+		memo(() => MD(currentContent.value()), [currentContent])
+	)
 
 	sessionRenderer.appendChild(currentElement)
 }
@@ -87,6 +87,7 @@ const pipe = (event) => {
       
     case EventTypes.RESPONSE_END:
       isAgentRunning.next(false)
+			console.log(messages)
       break
       
     case EventTypes.ERROR:
@@ -187,18 +188,30 @@ const sessionItemMD = (item) => {
 
 	// Build message with optional thinking block
 	const children = []
+	let contentEl
+	let thinkingEl 
 	if (item.reasoning_content && item.role === 'assistant') {
-		children.push(thinkingBlock(item.reasoning_content))
+		thinkingEl = (thinkingBlock(item.reasoning_content))
 	}
 
 	if (item.content) {
-		const roleEl = dom(['div.role', /*item.role,*/ ` (${estimateTokens(item.content)})`])
-		const contentEl = MD(item.content)
-		children.push(roleEl, ...contentEl)
+		 contentEl = MD(item.content)
 	}
 
-	return dom(['div.session-item', { role: item.role }, ...children])
+	return constructSessionItemElement(item.role, contentEl, thinkingEl)
 };
+
+const constructSessionItemElement = (role, content, thinking) => {
+	const open = reactive(false)
+	let el = ['div.session-item', 
+		{ role: role, onclick: e => open.next(e => !e), open },
+	]
+
+	thinking ? el.push(thinking) : null
+	Array.isArray(content) ? el.push(...content) : el.push(content)
+
+	return dom(el)
+}
 
 const sessionItemRAW = (item) => {
 	return dom(['pre', {
@@ -218,8 +231,8 @@ const mdraw = ['.buttons',
 
 const sessionRenderer = dom('.session-renderer');
 const createSessionRenderer = (state, readFile) => {
-
-	const inputEl = dom(['textarea', {
+	// TODO: Make this a codemirror element...
+	const inputEl = dom(['textarea.prompt-box', {
 		placeholder: 'Enter your prompt...',
 		// disabled: memo(() => isAgentRunning.value()),
 		onkeydown: async (e) => {
@@ -241,6 +254,7 @@ const createSessionRenderer = (state, readFile) => {
 		sessionRenderer.innerHTML = '';
 		sessionRenderer.appendChild(dom(mdraw));
 		sessionRenderer.appendChild(dom(['p', 'size:' + estimateContextSize(messages)]))
+		sessionRenderer.appendChild(inputEl);
 
 		if (Array.isArray(messages)) {
 			messages.forEach(item => {
@@ -251,13 +265,9 @@ const createSessionRenderer = (state, readFile) => {
 		}
 		
 		// Re-append input box after rendering
-		sessionRenderer.appendChild(inputEl);
 	};
 
 	STRATEGY.subscribe(v => renderSession(messages));
-	
-	// TODO: remove this
-	// pipedMessages.subscribe(_ => renderSession(pipedMessages.value()))
 
 	state.currentSession.subscribe(async (path) => {
 		if (!path) return;

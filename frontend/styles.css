@@ -22,6 +22,7 @@ body {
 	padding: 20px;
 	max-width: 900px;
 	margin: 0 auto;
+	padding-bottom: 20vh;
 }
 
 
@@ -114,6 +115,7 @@ h4,h5,h6 {
 /* Session Renderer */
 .session-renderer {
 	margin-top: 2em;
+	padding-bottom: 20vh;
 }
 
 .session-item {
@@ -121,8 +123,17 @@ h4,h5,h6 {
 	padding: 1em;
 	margin-bottom: 1em;
 	background: var(--bg);
-	max-height: 80vh;
-	overflow-y: scroll;
+	font-size: 1.1em;
+	line-height: 1.8em;
+	overflow-y: hidden;
+}
+
+.session-item[open='false'] {
+	max-height: 60vh;
+}
+
+.session-item[open='true'] {
+	max-height: none;
 }
 
 .session-item .role {
