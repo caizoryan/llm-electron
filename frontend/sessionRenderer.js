@@ -2,7 +2,6 @@ import { dom } from './lib/dom.js';
 import { memo, reactive } from './lib/chowk.js';
 import { MD } from './lib/md.js';
 
-
 let estimateTokens = (text) => Math.ceil(text.length / 4);
 let estimateContextSize = parsed => {
 	if (!Array.isArray(parsed)) return estimateTokens(String(parsed));
@@ -17,10 +16,7 @@ let estimateContextSize = parsed => {
 
 const readFileContent = async (path, readFile) => {
 	const result = await readFile(path);
-	if (!result.success) {
-		throw new Error(result.error);
-	}
-	return result.content;
+	return result;
 };
 
 const parseSessionContent = (content) => {

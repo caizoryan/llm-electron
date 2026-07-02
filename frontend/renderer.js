@@ -1,6 +1,7 @@
 import { dom } from './lib/dom.js';
 import { reactive, memo } from './lib/chowk.js';
 import { createSessionRenderer } from './sessionRenderer.js';
+import { fs } from '../fs.js';
 
 let currentPath = ''
 let SESSIONS_DIRECTORY = '/Users/aaryan/.llm_sessions/'
@@ -10,9 +11,9 @@ let state = {
 	parsedSession: ''
 }
 
-const readFile = async (filePath) => window.electronAPI.readFile([filePath]);
-const writeFile = async(path, content) =>  window.electronAPI.writeFile([path, content])
-const listFiles = async(path) => window.electronAPI.listFiles([path])
+const readFile = fs.readFile
+const writeFile = fs.writeFile
+const listFiles = fs.listFiles
 
 
 // ---------------------
@@ -39,8 +40,8 @@ const loadSessions = async () => {
   list.textContent = 'Loading...';
   const result = await listFiles(SESSIONS_DIRECTORY);
   
-  if (result.success) {
-    renderList(list, result.files);
+  if (result) {
+    renderList(list, result);
   } else {
     list.textContent = `Error: ${result.error}`;
   }
