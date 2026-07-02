@@ -32,6 +32,7 @@ const parseSessionContent = (content) => {
 const STRATEGY = reactive('MD'); // 'RAW' | 'MD'
 
 let messages =[]
+let currentSessionPath = null
 const isAgentRunning = reactive(false)
 
 let currentContent = undefined
@@ -230,7 +231,24 @@ const mdraw = ['.buttons',
 ];
 
 const sessionRenderer = dom('.session-renderer');
-const createSessionRenderer = (state, readFile) => {
+const createSessionRenderer = (state, readFile, writeFile) => {
+	document.addEventListener('keydown', async (e) => {
+		currentSessionPath = state.currentSession.value()
+		console.log(currentSessionPath, writeFile)
+		console.log(currentSessionPath, state)
+		console.log(typeof writeFile)
+		if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+			e.preventDefault();
+			if (currentSessionPath && writeFile) {
+				try {
+					await writeFile(currentSessionPath, JSON.stringify(messages, null, 2));
+					console.log('Session saved to', currentSessionPath);
+				} catch (err) {
+					console.error('Failed to save session:', err);
+				}
+			}
+		}
+	});
 	// TODO: Make this a codemirror element...
 	const inputEl = dom(['textarea.prompt-box', {
 		// disabled: memo(() => isAgentRunning.value()),

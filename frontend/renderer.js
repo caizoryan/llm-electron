@@ -53,7 +53,7 @@ loadSessions();
 // ---------------------
 // Session Renderer
 // ---------------------
-const sessionRenderer = createSessionRenderer(state, readFile);
+const sessionRenderer = createSessionRenderer(state, readFile, writeFile);
 
 // document.body.appendChild(content);
 document.body.appendChild(sessionsBrowser);

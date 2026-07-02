@@ -10,7 +10,7 @@ export const fs = {
   writeFile: async (path, content) => {
     const result = await window.electronAPI.writeFile([path, content]);
     if (!result.success) throw new Error(result.error);
-    return `bytesWritten: ${Buffer.byteLength(content)}`;
+    return `bytesWritten: ${content.length}`;
   },
   
   listFiles: async (path) => {

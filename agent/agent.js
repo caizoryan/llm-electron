@@ -142,7 +142,7 @@ export async function runAgentTurn(messages, pipe) {
           messages.push({
             role: 'tool',
             tool_call_id: toolCall.id,
-            content: errorResult
+            content: JSON.stringify(errorResult)
           })
 
           pipe(createEvent(EventTypes.TOOL_RESULT, {
@@ -154,9 +154,7 @@ export async function runAgentTurn(messages, pipe) {
       }
 
 
-      // Recursively continue with tool results
-      await runAgentTurn(messages, pipe, toolExecutor)
-      return
+
     }
 
     // Add assistant message to history
@@ -165,14 +163,19 @@ export async function runAgentTurn(messages, pipe) {
       messages.push({
         role: 'assistant',
         content: respondedContent,
-        // reasoning_content: reasoningContent,
+        reasoning_content: reasoningContent,
       })
-
 
     }
 
+		if (toolCalls.length > 0){
+      // Recursively continue with tool results
+      await runAgentTurn(messages, pipe, toolExecutor)
+      return
+		}
+
     pipe(createEvent(EventTypes.RESPONSE_END, {
-      message: { role: 'assistant', content: respondedContent, reasoning_content: reasoningContent },
+      // message: { role: 'assistant', content: respondedContent, reasoning_content: reasoningContent },
       // finish_reason: hasToolCalls ? 'tool_calls' : 'stop'
     }))
 
