@@ -1,0 +1,7 @@
+- [ ] be able to view sessions
+    - [x] get files
+    - [ ] show file name and size (?)
+- [ ] selecting makes it active and renders it
+    - [ ] state to keep selection
+- [ ] add another item to it (chat prompt)
+- [ ] send the session for completion and append it to the file.

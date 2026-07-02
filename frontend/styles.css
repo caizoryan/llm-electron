@@ -1,0 +1,28 @@
+/* styles.css */
+
+/* Add styles here to customize the appearance of your app */
+
+body {
+	font-family: Arial, sans-serif;
+	padding: 20px;
+}
+#fileInput {
+	padding: 1em;
+}
+#output {
+	margin-top: 20px;
+	padding: 15px;
+	background: #f5f5f5;
+	border-radius: 5px;
+	width: 80vw;
+}
+
+#sessionList li {
+  padding: 8px;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+#sessionList li:hover {
+  background: #e0e0e0;
+}
