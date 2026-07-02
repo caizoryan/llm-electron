@@ -1,6 +1,23 @@
 :root {
-	--bg: #CCE0BE;
-	--col: #3A6F55;
+	/* Color Palettes */
+	--green-bg: #CCE0BE;
+	--green-col: #3A6F55;
+
+	--blue-bg: #BED8E0;
+	--blue-col: #3A6F6F;
+
+	--pink-bg: #E0BECB;
+	--pink-col: #6F3A55;
+
+	--yellow-bg: #E0D8BE;
+	--yellow-col: #6F553A;
+
+	--purple-bg: #D8BEF0;
+	--purple-col: #553A6F;
+
+	/* Default colors */
+	--bg: var(--green-bg);
+	--col: var(--green-col);
 }
 
 * {
