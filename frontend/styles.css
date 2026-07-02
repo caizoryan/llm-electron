@@ -217,3 +217,28 @@ h4,h5,h6 {
 	background: none;
 	padding: 0;
 }
+
+/* Button Styles */
+button {
+	padding: 0.75em 1.5em;
+	background: var(--bg);
+	color: var(--col);
+	border: 1.5px solid var(--col);
+	font-family: monospace;
+	font-size: 1em;
+	cursor: pointer;
+	transition: all 0.2s ease;
+}
+
+button:hover {
+	background: var(--col);
+	color: var(--bg);
+}
+
+button:focus {
+	outline: none;
+}
+
+button:active {
+	transform: translateY(1px);
+}

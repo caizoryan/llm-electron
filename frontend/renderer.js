@@ -1,12 +1,14 @@
 import { dom } from './dom.js';
-import { reactive, memo } from './chowk.js'
+import { reactive, memo } from './chowk.js';
 import { MD } from './md.js';
+import { createSessionRenderer } from './sessionRenderer.js';
 
 let currentPath = ''
 let SESSIONS_DIRECTORY = '/Users/aaryan/.llm_sessions/'
 
 let state = {
-	currentSession: reactive('')
+	currentSession: reactive(''),
+	parsedSession: ''
 }
 
 const readFile = async (filePath) => window.electronAPI.readFile([filePath]);
@@ -94,88 +96,7 @@ loadSessions();
 // ---------------------
 // Session Renderer
 // ---------------------
-
-const sessionRenderer = dom('.session-renderer')
-
-const readFileContent = async (path) => {
-	const result = await readFile(path);
-	if (!result.success) {
-		throw new Error(result.error);
-	}
-	return result.content;
-};
-
-const parseSessionContent = (content) => {
-	try {
-		return JSON.parse(content);
-	} catch (e) {
-		throw new Error(`Error parsing JSON: ${e.message}`);
-	}
-};
-
-const STRATEGY = 'MD' // 'RAW'
-// const STRATEGY = 'RAW'
-
-
-const sessionItemMD = (item) => {
-	if (item.role == 'system') return dom(['div.system', 'SYSTEM'])
-
-	if (item.role == 'assistant' && (!item.content || item.content == '') && item.tool_calls) {
-		const toolCallsEl = dom(['div.tool-calls']);
-		item.tool_calls.forEach(tool_call => {
-			const func = tool_call.function;
-			const args = Object.entries(JSON.parse(func.arguments))
-				.map(([key, value]) => 
-					['.tool-args', 
-						['p.key', key],
-						['pre.value', value],
-				])
-			// JSON.stringify(func.arguments, null, 2);
-			toolCallsEl.appendChild(dom(['div.tool-call',
-				['div.tool-name', func.name],
-				...args
-			]));
-		});
-		return dom(['div.session-item', ['div.role', item.role], toolCallsEl]);
-	}
-
-	const roleEl = dom(['div.role', item.role]);
-	const contentEl = MD(item.content);
-	return dom(['div.session-item', roleEl, ...contentEl]);
-};
-
-const sessionItemRAW = (item) => {
-	return dom(['pre', {
-		class: 'session-item'
-	}, JSON.stringify(item, null, 2)]);
-};
-
-const renderSessionItem = (item) => {
-	if (STRATEGY == 'RAW') return sessionItemRAW(item);
-	else if (STRATEGY == 'MD') return sessionItemMD(item);
-};
-
-const renderSession = (parsed) => {
-	sessionRenderer.innerHTML = '';
-	if (Array.isArray(parsed)) {
-		parsed.forEach(item => {
-			sessionRenderer.appendChild(renderSessionItem(item));
-		});
-	} else {
-		sessionRenderer.appendChild(renderSessionItem(parsed));
-	}
-};
-
-state.currentSession.subscribe(async (path) => {
-	if (!path) return;
-	try {
-		const content = await readFileContent(path);
-		const parsed = parseSessionContent(content);
-		renderSession(parsed);
-	} catch (e) {
-		sessionRenderer.innerHTML = `${e.message}\n\nRaw content:\n<pre>${content || ''}</pre>`;
-	}
-})
+const sessionRenderer = createSessionRenderer(state, readFile);
 
 // document.body.appendChild(content);
 document.body.appendChild(sessionsBrowser);
