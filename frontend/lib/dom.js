@@ -146,6 +146,7 @@ export let dom = (tag, ...contents) => {
 				// if its an array there make a list
 				let nodes = v.map((e) => dom(e))
 				nodes.forEach(n => doc.appendChild(n))
+			  console.log("Is an array", nodes)
 
 				e.subscribe((vv) => {
 					let newnodes = vv.map((e)=> dom(e))

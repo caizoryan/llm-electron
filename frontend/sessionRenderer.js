@@ -31,77 +31,71 @@ const parseSessionContent = (content) => {
 
 const STRATEGY = reactive('MD'); // 'RAW' | 'MD'
 
-const pipedMessages = reactive([])
+// TODO: Make this a normal array
+let messages =[]
 const isAgentRunning = reactive(false)
 
+let currentContent = undefined
+let currentReasoning = undefined
+let currentElement = undefined
+
+let startAgentMessageRender = () => {
+	currentContent = reactive('')
+	currentReasoning = reactive('')
+	currentElement = dom(['.session-item', {role: "assistant"}, 
+		thinkingBlock(currentReasoning),
+		['.el', memo(() => MD(currentContent.value()), [currentContent])]
+	])
+
+	sessionRenderer.appendChild(currentElement)
+}
+let endAgentMessageRender = () => (currentContent=undefined, currentReasoning=undefined, currentElement=undefined)
+
 const pipe = (event) => {
-	const msgs = pipedMessages.value()
-	const lastMsg = msgs[msgs.length - 1]
 
   switch (event.type) {
     case EventTypes.USER_MESSAGE:
-      pipedMessages.next(e => [...e, { role: 'user', content: event.content }])
+			sessionRenderer.appendChild(renderSessionItem({ role: 'user', content: event.content }))
       break
 
     case EventTypes.RESPONSE_START:
-      // Agent is starting to respond - could show loading indicator
-      pipedMessages.next(e => [...e, { role: 'assistant', content: '' }])
       isAgentRunning.next(true)
       break
 
     case EventTypes.THINKING_DELTA:
-      if (lastMsg && lastMsg.role === 'assistant') {
-        lastMsg.reasoning_content = (lastMsg.reasoning_content || '') + event.delta
-        pipedMessages.next([...msgs.slice(0, -1), lastMsg])
-      }
+			if (!currentReasoning) startAgentMessageRender()
+			currentReasoning.next(v => v+ event.delta)
       break
       
     case EventTypes.TEXT_DELTA:
-      const current = pipedMessages.value()
-      const last = current[current.length - 1]
-      if (last && last.role === 'assistant') {
-        last.content = (last.content || '') + event.delta
-        pipedMessages.next([...current.slice(0, -1), last])
-      } else {
-        pipedMessages.next([...current, { role: 'assistant', content: event.delta }])
+			if (!currentReasoning) startAgentMessageRender()
+      if (currentContent) {
+				currentContent.next(v => v+ event.delta)
       }
       break
       
     case EventTypes.TOOL_CALL:
-      if (lastMsg && lastMsg.role === 'assistant') {
-        lastMsg.tool_calls = [...(lastMsg.tool_calls || []), event.tool_call]
-        pipedMessages.next([...msgs.slice(0, -1), lastMsg])
-      }
+			endAgentMessageRender()
+			sessionRenderer.appendChild(toolCallItem({tool_calls: [event.tool_call]}))
+
       break
       
     case EventTypes.TOOL_RESULT:
-      pipedMessages.next([...pipedMessages.value(), {
-        role: 'tool',
-        tool_call_id: event.tool_call_id,
-        content: event.result
-      }])
+			endAgentMessageRender()
+			sessionRenderer.appendChild(toolCallResult(event))
       break
       
     case EventTypes.RESPONSE_END:
-      // Add assistant message to messages if there is content
-				//   if (event.message 
-				// && event.message.role === 'assistant' 
-				// && event.message.content) {
-				//     pipedMessages.next(e => [...e, event.message])
-				//   }
-
       isAgentRunning.next(false)
       break
       
     case EventTypes.ERROR:
-      pipedMessages.next([...pipedMessages.value(), {
-        role: 'system',
-        content: `Error: ${event.message}`
-      }])
       isAgentRunning.next(false)
       break
   }
 }
+
+isAgentRunning.subscribe(v => v ? null : endAgentMessageRender())
 
 const toolCallRequests = { }
 
@@ -198,7 +192,7 @@ const sessionItemMD = (item) => {
 	}
 
 	if (item.content) {
-		const roleEl = dom(['div.role', item.role, ` (${estimateTokens(item.content)})`])
+		const roleEl = dom(['div.role', /*item.role,*/ ` (${estimateTokens(item.content)})`])
 		const contentEl = MD(item.content)
 		children.push(roleEl, ...contentEl)
 	}
@@ -222,8 +216,8 @@ const mdraw = ['.buttons',
 	['button', {onclick: () => STRATEGY.next("RAW")}, 'RAW'],
 ];
 
+const sessionRenderer = dom('.session-renderer');
 const createSessionRenderer = (state, readFile) => {
-	const sessionRenderer = dom('.session-renderer');
 
 	const inputEl = dom(['textarea', {
 		placeholder: 'Enter your prompt...',
@@ -237,11 +231,12 @@ const createSessionRenderer = (state, readFile) => {
 				inputEl.value = ''
 				isAgentRunning.next(true)
 
-				await startAgentLoop(prompt, [...pipedMessages.value()], pipe)
+				await startAgentLoop(prompt, messages, pipe)
 			}
 		}
 	}])
 
+	// should happen only once...
 	const renderSession = (messages) => {
 		sessionRenderer.innerHTML = '';
 		sessionRenderer.appendChild(dom(mdraw));
@@ -259,15 +254,17 @@ const createSessionRenderer = (state, readFile) => {
 		sessionRenderer.appendChild(inputEl);
 	};
 
-	STRATEGY.subscribe(v => renderSession(pipedMessages.value()));
-	pipedMessages.subscribe(_ => renderSession(pipedMessages.value()))
+	STRATEGY.subscribe(v => renderSession(messages));
+	
+	// TODO: remove this
+	// pipedMessages.subscribe(_ => renderSession(pipedMessages.value()))
 
 	state.currentSession.subscribe(async (path) => {
 		if (!path) return;
 		try {
 			const content = await readFileContent(path, readFile);
 			const parsed = parseSessionContent(content);
-			pipedMessages.next(parsed);
+			messages = parsed;
 			renderSession(parsed);
 		} catch (e) {
 			console.error("TF?", e)

@@ -125,7 +125,8 @@ export async function runAgentTurn(messages, pipe) {
           // Notify UI of result
           pipe(createEvent(EventTypes.TOOL_RESULT, {
             tool_call_id: toolCall.id,
-            result
+						role: 'tool',
+            content: result
           }))
 
         } catch (error) {
@@ -139,7 +140,8 @@ export async function runAgentTurn(messages, pipe) {
 
           pipe(createEvent(EventTypes.TOOL_RESULT, {
             tool_call_id: toolCall.id,
-            result: errorResult
+						role: 'tool',
+            content: result
           }))
         }
       }
