@@ -35,7 +35,6 @@ const pipedMessages = reactive([])
 const isAgentRunning = reactive(false)
 
 const pipe = (event) => {
-	console.log(event)
 	const msgs = pipedMessages.value()
 	const lastMsg = msgs[msgs.length - 1]
 
@@ -51,10 +50,8 @@ const pipe = (event) => {
       break
 
     case EventTypes.THINKING_DELTA:
-			console.log("OK!")
       if (lastMsg && lastMsg.role === 'assistant') {
         lastMsg.reasoning_content = (lastMsg.reasoning_content || '') + event.delta
-				console.log("ADding", lastMsg, lastMsg.reasoning_content)
         pipedMessages.next([...msgs.slice(0, -1), lastMsg])
       }
       break
@@ -81,7 +78,7 @@ const pipe = (event) => {
       pipedMessages.next([...pipedMessages.value(), {
         role: 'tool',
         tool_call_id: event.tool_call_id,
-        content: JSON.stringify(event.result)
+        content: event.result
       }])
       break
       

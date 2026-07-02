@@ -119,7 +119,7 @@ export async function runAgentTurn(messages, pipe) {
           messages.push({
             role: 'tool',
             tool_call_id: toolCall.id,
-            content: JSON.stringify(result)
+            content: result
           })
 
           // Notify UI of result
@@ -134,7 +134,7 @@ export async function runAgentTurn(messages, pipe) {
           messages.push({
             role: 'tool',
             tool_call_id: toolCall.id,
-            content: JSON.stringify(errorResult)
+            content: errorResult
           })
 
           pipe(createEvent(EventTypes.TOOL_RESULT, {
