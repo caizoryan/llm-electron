@@ -166,7 +166,6 @@ export async function runAgentTurn(messages, pipe) {
         role: 'assistant',
         content: respondedContent,
         // reasoning_content: reasoningContent,
-        tool_calls: toolCalls
       })
 
 
@@ -197,10 +196,13 @@ export async function startAgentLoop(prompt, messages, pipe, toolExecutor) {
     content: prompt
   })
 
+	console.log('messages', messages)
+
   // Notify UI of user message
   pipe(createEvent(EventTypes.USER_MESSAGE, {
     content: prompt
   }))
+
 
   // Run the agent turn
   await runAgentTurn(messages, pipe, toolExecutor)

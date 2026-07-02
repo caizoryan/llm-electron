@@ -233,7 +233,6 @@ const sessionRenderer = dom('.session-renderer');
 const createSessionRenderer = (state, readFile) => {
 	// TODO: Make this a codemirror element...
 	const inputEl = dom(['textarea.prompt-box', {
-		placeholder: 'Enter your prompt...',
 		// disabled: memo(() => isAgentRunning.value()),
 		onkeydown: async (e) => {
 			if (e.key === 'Enter' && !e.shiftKey) {

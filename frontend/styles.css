@@ -305,6 +305,8 @@ button:active {
 
 .thinking-block[open='true'] .thinking-content {
   display: block;
+	max-height: 400px;
+	overflow-y: scroll;
 }
 
 .thinking-content pre {
@@ -317,5 +319,15 @@ button:active {
 	bottom: 1vh;
 	left: 20vw;
 	width: 60vw;
+	box-shadow: 0 0 8px 8px #2221;
+	border: 2px solid var(--bg);
+	background-color: var(--col);
+	color: var(--bg);
+	padding: 1em;
+	max-width: 700px;
 	height: 120px;
+}
+
+.prompt-box:focus {
+	outline: none;
 }
