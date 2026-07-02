@@ -1,5 +1,5 @@
-import markdownIt from "./lib/markdown-it/markdown-it.jss";
-import markdownItMark from "./lib/markdown-it/markdown-it-mark.jss";
+import markdownIt from "./markdown-it/markdown-it.js";
+import markdownItMark from "./markdown-it/markdown-it-mark.js";
 
 // ********************************
 // SECTION : MARKDOWN RENDERING

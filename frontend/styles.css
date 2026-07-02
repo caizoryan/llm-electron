@@ -152,10 +152,8 @@ h4,h5,h6 {
 
 .tool-call {
 	background: var(--bg);
-	border-top: 0.5px solid var(--col);
 	padding: 0.85em 0;
 	margin-bottom: 0.5em;
-	margin-top: 2em;
 }
 
 .tool-name {
@@ -170,6 +168,22 @@ h4,h5,h6 {
 	overflow-x: auto;
 	border: 0.5px solid var(--col);
 	margin-top: 1em;
+}
+
+.session-item[role='user'] {
+	margin-left: 6em;
+}
+
+.session-item[role='assistant'],
+.session-item[role='tool'] {
+	margin-right: 6em;
+}
+
+.session-item.tool {
+    padding: 0 1em;
+    border: none;
+    margin: 0;
+		font-size: .8em;
 }
 
 /* Markdown Styles within Session Items */
