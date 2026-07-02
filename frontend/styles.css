@@ -1,28 +1,219 @@
-/* styles.css */
+:root {
+	--bg: #CCE0BE;
+	--col: #3A6F55;
+}
 
-/* Add styles here to customize the appearance of your app */
+* {
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+
+*::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Edge */
+}
 
 body {
-	font-family: Arial, sans-serif;
+	font-family: monospace;
+	background: var(--bg);
+	color: var(--col);
 	padding: 20px;
+	max-width: 900px;
+	margin: 0 auto;
 }
+
+
+h1 {
+	font-size: 1.3em;
+}
+
+h2 {
+	font-size: 1.2em;
+}
+
+h3 {
+	font-size: 1.1em;
+}
+
+h1, h2, h3 {
+	border-bottom: 1px solid var(--col);
+	padding-bottom: 0.5em;
+	margin-bottom: 0.5em;
+	margin-top: 1.8em;
+}
+
+h4,h5,h6 {
+	margin-top: 1.8em;
+	font-size: 1em;
+}
+
+/* Input Styles */
 #fileInput {
-	padding: 1em;
+	padding: 0.75em;
+	border: 1.5px solid var(--col);
+	background: var(--bg);
+	color: var(--col);
+	font-family: monospace;
+	font-size: 1em;
+	width: 100%;
+	margin-bottom: 1em;
 }
+
+#fileInput:focus {
+	outline: none;
+	background: var(--col);
+	color: var(--bg);
+}
+
+/* Output Textarea */
 #output {
-	margin-top: 20px;
-	padding: 15px;
-	background: #f5f5f5;
-	border-radius: 5px;
-	width: 80vw;
+	margin-top: 1em;
+	padding: 1em;
+	background: var(--bg);
+	border: 1.5px solid var(--col);
+	border-radius: 0;
+	width: 100%;
+	min-height: 200px;
+	font-family: monospace;
+	font-size: 0.9em;
+	line-height: 1.45em;
+	resize: vertical;
+}
+
+#output:focus {
+	outline: none;
+}
+
+/* Session Styles */
+.session {
+	margin-top: 3em;
+}
+
+/* Session List */
+#sessionList {
+	list-style: none;
+	padding: 0;
 }
 
 #sessionList li {
-  padding: 8px;
-  cursor: pointer;
-  border-radius: 3px;
+	padding: 0.75em;
+	cursor: pointer;
+	border-bottom: 0.5px solid var(--col);
+	margin-bottom: -0.5px;
+	transition: background 0.2s ease;
 }
 
 #sessionList li:hover {
-  background: #e0e0e0;
+	background: var(--col);
+	color: var(--bg);
+}
+
+
+/* Session Renderer */
+.session-renderer {
+	margin-top: 2em;
+}
+
+.session-item {
+	border: 1.5px solid var(--col);
+	padding: 1em;
+	margin-bottom: 1em;
+	background: var(--bg);
+	max-height: 80vh;
+	overflow-y: scroll;
+}
+
+.session-item .role {
+	font-weight: bold;
+	margin-bottom: 0.5em;
+	padding-bottom: 0.75em;
+	/* border-bottom: 0.5px solid var(--col); */
+	text-transform: uppercase;
+	font-size: 0.65em;
+	letter-spacing: 0.05em;
+}
+
+.session-item.system {
+	background: var(--col);
+	color: var(--bg);
+}
+
+.session-item p {
+	margin-top: 0.5em;
+	line-height: 1.45em;
+}
+
+/* Tool Calls */
+.tool-calls {
+	margin-top: 0.5em;
+}
+
+.tool-call {
+	background: var(--bg);
+	border-top: 0.5px solid var(--col);
+	padding: 0.85em 0;
+	margin-bottom: 0.5em;
+	margin-top: 2em;
+}
+
+.tool-name {
+	font-weight: bold;
+	margin-bottom: 0.25em;
+}
+
+.tool-args {
+	background: var(--bg);
+	padding: 0.85em;
+	font-size: 0.85em;
+	overflow-x: auto;
+	border: 0.5px solid var(--col);
+	margin-top: 1em;
+}
+
+/* Markdown Styles within Session Items */
+.session-item ul,
+.session-item ol {
+	margin-top: 0.5em;
+	margin-left: 1.5em;
+	margin-bottom: 0.85em;
+}
+
+.session-item li::marker {
+	content: "x ";
+	font-size: 0.8em;
+}
+
+.session-item a {
+	all: unset;
+	cursor: pointer;
+	text-decoration: underline;
+	text-decoration-thickness: 1px;
+	text-underline-offset: 0.25em;
+}
+
+.session-item a:hover {
+	background-color: var(--col);
+	color: var(--bg);
+}
+
+.session-item code {
+	background: var(--col);
+	color: var(--bg);
+	padding: 0.1em 0.3em;
+	font-size: 0.9em;
+}
+
+.session-item pre {
+	background: var(--col);
+	color: var(--bg);
+	padding: 0.75em;
+	overflow-x: auto;
+	margin-top: 0.5em;
+}
+
+.session-item pre code {
+	background: none;
+	padding: 0;
 }

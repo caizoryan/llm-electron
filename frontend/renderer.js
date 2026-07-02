@@ -1,5 +1,6 @@
 import { dom } from './dom.js';
 import { reactive, memo } from './chowk.js'
+import { MD } from './md.js';
 
 let currentPath = ''
 let SESSIONS_DIRECTORY = '/Users/aaryan/.llm_sessions/'
@@ -60,7 +61,7 @@ const content = dom([
 // ---------------------
 // Session Browser
 // ---------------------
-let list = dom(['ul#sessionsList', { style: 'list-style: none; padding: 0;' }])
+let list = dom(['ul#sessionList', { style: 'list-style: none; padding: 0;' }])
 const sessionsBrowser = dom(['.session', 
   ['h3', 'Sessions'],
 	list
@@ -71,7 +72,6 @@ const renderList = (list, files) => {
   list.innerHTML = '';
   files.forEach(file => {
     const item = dom(['li', {
-      id: 'sessionList',
       onclick: () => state.currentSession.next(SESSIONS_DIRECTORY + "/" + file),
     }, file]);
     list.appendChild(item);
@@ -113,10 +113,46 @@ const parseSessionContent = (content) => {
 	}
 };
 
-const renderSessionItem = (item) => {
+const STRATEGY = 'MD' // 'RAW'
+// const STRATEGY = 'RAW'
+
+
+const sessionItemMD = (item) => {
+	if (item.role == 'system') return dom(['div.system', 'SYSTEM'])
+
+	if (item.role == 'assistant' && (!item.content || item.content == '') && item.tool_calls) {
+		const toolCallsEl = dom(['div.tool-calls']);
+		item.tool_calls.forEach(tool_call => {
+			const func = tool_call.function;
+			const args = Object.entries(JSON.parse(func.arguments))
+				.map(([key, value]) => 
+					['.tool-args', 
+						['p.key', key],
+						['pre.value', value],
+				])
+			// JSON.stringify(func.arguments, null, 2);
+			toolCallsEl.appendChild(dom(['div.tool-call',
+				['div.tool-name', func.name],
+				...args
+			]));
+		});
+		return dom(['div.session-item', ['div.role', item.role], toolCallsEl]);
+	}
+
+	const roleEl = dom(['div.role', item.role]);
+	const contentEl = MD(item.content);
+	return dom(['div.session-item', roleEl, ...contentEl]);
+};
+
+const sessionItemRAW = (item) => {
 	return dom(['pre', {
 		class: 'session-item'
 	}, JSON.stringify(item, null, 2)]);
+};
+
+const renderSessionItem = (item) => {
+	if (STRATEGY == 'RAW') return sessionItemRAW(item);
+	else if (STRATEGY == 'MD') return sessionItemMD(item);
 };
 
 const renderSession = (parsed) => {
@@ -132,7 +168,6 @@ const renderSession = (parsed) => {
 
 state.currentSession.subscribe(async (path) => {
 	if (!path) return;
-
 	try {
 		const content = await readFileContent(path);
 		const parsed = parseSessionContent(content);
