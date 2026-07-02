@@ -21,7 +21,9 @@ export default  {
 
 	listFiles: async (event, [directoryPath]) => {
 		try {
-			const files = fs.readdirSync(directoryPath);
+			const files = fs.readdirSync(directoryPath, {withFileTypes: true})
+        .map(e => e.isDirectory() ? `${e.name}/` : e.name)
+        .join("\n")
 			return { success: true, files };
 		} catch (error) {
 			return { success: false, error: error.message };

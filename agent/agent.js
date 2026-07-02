@@ -75,6 +75,7 @@ const toolExecutor = async (toolCall) => {
  */
 export async function runAgentTurn(messages, pipe) {
   let respondedContent = ''
+  let reasoningContent = ''
   let toolCalls = []
 
   try {
@@ -83,6 +84,15 @@ export async function runAgentTurn(messages, pipe) {
     // Stream response from API
     await callZAPI(messages, (delta) => {
       // Content streaming
+      console.log(delta)
+
+      // Handle reasoning content (thinking)
+      if (delta.reasoning_content) {
+        reasoningContent += delta.reasoning_content
+        pipe(createEvent(EventTypes.THINKING_DELTA, { delta: delta.reasoning_content }))
+      }
+
+      // Handle regular content
       if (delta.content) {
         respondedContent += delta.content
         pipe(createEvent(EventTypes.TEXT_DELTA, { delta: delta.content }))
@@ -141,15 +151,16 @@ export async function runAgentTurn(messages, pipe) {
     }
 
     // Add assistant message to history
-    if (respondedContent) {
+    if (respondedContent || reasoningContent) {
       messages.push({
         role: 'assistant',
-        content: respondedContent
+        content: respondedContent,
+        reasoning_content: reasoningContent
       })
     }
 
     pipe(createEvent(EventTypes.RESPONSE_END, {
-      message: { role: 'assistant', content: respondedContent },
+      message: { role: 'assistant', content: respondedContent, reasoning_content: reasoningContent },
       // finish_reason: hasToolCalls ? 'tool_calls' : 'stop'
     }))
 

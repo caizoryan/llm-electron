@@ -10,26 +10,27 @@ export const fs = {
   writeFile: async (path, content) => {
     const result = await window.electronAPI.writeFile([path, content]);
     if (!result.success) throw new Error(result.error);
-    return { bytesWritten: Buffer.byteLength(content) };
+    return `bytesWritten: ${Buffer.byteLength(content)}`;
   },
   
   listFiles: async (path) => {
 		console.log("listing", path)
     const result = await window.electronAPI.listFiles([path]);
-    if (result.success) return result.files;
+    if (result.success) return result.files
     throw new Error(result.error);
   },
   
   appendFile: async (path, content) => {
     const result = await window.electronAPI.appendFile([path, content]);
     if (!result.success) throw new Error(result.error);
-    return { bytesAppended: Buffer.byteLength(content) };
+    return `bytesAppended: ${Buffer.byteLength(content)}`;
   },
   
   replaceInFile: async (path, search, replace) => {
     const content = await fs.readFile(path);
     const newContent = content.replace(search, replace);
     await fs.writeFile(path, newContent);
-    return { replaced: true, file: path };
+		// TODO: Actually check if succesfully matched and replaced
+    return 'Successfully replaced';
   }
 };

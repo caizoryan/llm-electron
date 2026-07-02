@@ -256,3 +256,47 @@ button:focus {
 button:active {
 	transform: translateY(1px);
 }
+
+/* Thinking Block Styles */
+.thinking-block {
+  background: var(--bg);
+  border: 0.5px solid var(--col);
+  margin: 0.5em 0;
+  font-size: 0.85em;
+  overflow: hidden;
+}
+
+.thinking-header {
+  background: var(--col);
+  color: var(--bg);
+  padding: 0.5em 0.75em;
+  cursor: pointer;
+  font-weight: bold;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: background 0.2s ease;
+}
+
+.thinking-header:hover {
+  background: var(--bg);
+  color: var(--col);
+}
+
+.thinking-header .toggle-icon {
+  font-size: 0.8em;
+}
+
+.thinking-content {
+  padding: 0.75em;
+  display: none;
+}
+
+.thinking-block[open='true'] .thinking-content {
+  display: block;
+}
+
+.thinking-content pre {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}

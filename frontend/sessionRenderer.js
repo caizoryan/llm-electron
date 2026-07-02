@@ -1,6 +1,8 @@
 import { dom } from './lib/dom.js';
 import { memo, reactive } from './lib/chowk.js';
 import { MD } from './lib/md.js';
+import { startAgentLoop } from '../agent/agent.js'
+import { EventTypes } from '../agent/events.js'
 
 let estimateTokens = (text) => Math.ceil(text.length / 4);
 let estimateContextSize = parsed => {
@@ -29,7 +31,98 @@ const parseSessionContent = (content) => {
 
 const STRATEGY = reactive('MD'); // 'RAW' | 'MD'
 
+const pipedMessages = reactive([])
+const isAgentRunning = reactive(false)
+
+const pipe = (event) => {
+	console.log(event)
+	const msgs = pipedMessages.value()
+	const lastMsg = msgs[msgs.length - 1]
+
+  switch (event.type) {
+    case EventTypes.USER_MESSAGE:
+      pipedMessages.next(e => [...e, { role: 'user', content: event.content }])
+      break
+
+    case EventTypes.RESPONSE_START:
+      // Agent is starting to respond - could show loading indicator
+      pipedMessages.next(e => [...e, { role: 'assistant', content: '' }])
+      isAgentRunning.next(true)
+      break
+
+    case EventTypes.THINKING_DELTA:
+			console.log("OK!")
+      if (lastMsg && lastMsg.role === 'assistant') {
+        lastMsg.reasoning_content = (lastMsg.reasoning_content || '') + event.delta
+				console.log("ADding", lastMsg, lastMsg.reasoning_content)
+        pipedMessages.next([...msgs.slice(0, -1), lastMsg])
+      }
+      break
+      
+    case EventTypes.TEXT_DELTA:
+      const current = pipedMessages.value()
+      const last = current[current.length - 1]
+      if (last && last.role === 'assistant') {
+        last.content = (last.content || '') + event.delta
+        pipedMessages.next([...current.slice(0, -1), last])
+      } else {
+        pipedMessages.next([...current, { role: 'assistant', content: event.delta }])
+      }
+      break
+      
+    case EventTypes.TOOL_CALL:
+      if (lastMsg && lastMsg.role === 'assistant') {
+        lastMsg.tool_calls = [...(lastMsg.tool_calls || []), event.tool_call]
+        pipedMessages.next([...msgs.slice(0, -1), lastMsg])
+      }
+      break
+      
+    case EventTypes.TOOL_RESULT:
+      pipedMessages.next([...pipedMessages.value(), {
+        role: 'tool',
+        tool_call_id: event.tool_call_id,
+        content: JSON.stringify(event.result)
+      }])
+      break
+      
+    case EventTypes.RESPONSE_END:
+      // Add assistant message to messages if there is content
+				//   if (event.message 
+				// && event.message.role === 'assistant' 
+				// && event.message.content) {
+				//     pipedMessages.next(e => [...e, event.message])
+				//   }
+
+      isAgentRunning.next(false)
+      break
+      
+    case EventTypes.ERROR:
+      pipedMessages.next([...pipedMessages.value(), {
+        role: 'system',
+        content: `Error: ${event.message}`
+      }])
+      isAgentRunning.next(false)
+      break
+  }
+}
+
 const toolCallRequests = { }
+
+const thinkingBlock = (reasoningContent) => {
+  if (!reasoningContent) return null
+  
+  const open = reactive(true)
+  return dom(['div.thinking-block'
+		, { open: memo(() => open.value() ? 'true' : 'false', [open]) },
+    ['div.thinking-header', { onclick: () => open.next(v => !v) },
+      'Thinking...',
+      ['span.toggle-icon', memo(() => open.value() ? '▼' : '▶', [open])]
+    ],
+    ['div.thinking-content',
+      ['pre', reasoningContent]
+    ]
+  ])
+}
 
 const toolCallMinifiy = (tool_call) => {
 	let item = ['.tool-call']
@@ -101,9 +194,19 @@ const sessionItemMD = (item) => {
 		return toolCallResult(item)
 	}
 
-	const roleEl = dom(['div.role', item.role, ` (${estimateTokens(item.content)})`]);
-	const contentEl = MD(item.content);
-	return dom(['div.session-item',{role: item.role}, roleEl, ...contentEl]);
+	// Build message with optional thinking block
+	const children = []
+	if (item.reasoning_content && item.role === 'assistant') {
+		children.push(thinkingBlock(item.reasoning_content))
+	}
+
+	if (item.content) {
+		const roleEl = dom(['div.role', item.role, ` (${estimateTokens(item.content)})`])
+		const contentEl = MD(item.content)
+		children.push(roleEl, ...contentEl)
+	}
+
+	return dom(['div.session-item', { role: item.role }, ...children])
 };
 
 const sessionItemRAW = (item) => {
@@ -122,40 +225,60 @@ const mdraw = ['.buttons',
 	['button', {onclick: () => STRATEGY.next("RAW")}, 'RAW'],
 ];
 
-// this is what will have the prompt
-const inputBox = ['textarea']
-
 const createSessionRenderer = (state, readFile) => {
 	const sessionRenderer = dom('.session-renderer');
 
-	const renderSession = (parsed) => {
+	const inputEl = dom(['textarea', {
+		placeholder: 'Enter your prompt...',
+		// disabled: memo(() => isAgentRunning.value()),
+		onkeydown: async (e) => {
+			if (e.key === 'Enter' && !e.shiftKey) {
+				e.preventDefault()
+				const prompt = inputEl.value.trim()
+				if (!prompt || isAgentRunning.value()) return
+				
+				inputEl.value = ''
+				isAgentRunning.next(true)
+
+				await startAgentLoop(prompt, [...pipedMessages.value()], pipe)
+			}
+		}
+	}])
+
+	const renderSession = (messages) => {
 		sessionRenderer.innerHTML = '';
 		sessionRenderer.appendChild(dom(mdraw));
+		sessionRenderer.appendChild(dom(['p', 'size:' + estimateContextSize(messages)]))
 
-		sessionRenderer.appendChild(dom(['p', 'size:' + estimateContextSize(parsed)]))
-
-		if (Array.isArray(parsed)) {
-			parsed.forEach(item => {
+		if (Array.isArray(messages)) {
+			messages.forEach(item => {
 				sessionRenderer.appendChild(renderSessionItem(item));
 			});
 		} else {
-			sessionRenderer.appendChild(renderSessionItem(parsed));
+			sessionRenderer.appendChild(renderSessionItem(messages));
 		}
+		
+		// Re-append input box after rendering
+		sessionRenderer.appendChild(inputEl);
 	};
 
-	STRATEGY.subscribe(v => renderSession(state.parsedSession));
+	STRATEGY.subscribe(v => renderSession(pipedMessages.value()));
+	pipedMessages.subscribe(_ => renderSession(pipedMessages.value()))
 
 	state.currentSession.subscribe(async (path) => {
 		if (!path) return;
 		try {
 			const content = await readFileContent(path, readFile);
-			state.parsedSession = parseSessionContent(content);
-			renderSession(state.parsedSession);
+			const parsed = parseSessionContent(content);
+			pipedMessages.next(parsed);
+			renderSession(parsed);
 		} catch (e) {
 			console.error("TF?", e)
 			// sessionRenderer.innerHTML = `${e.message}\n\nRaw content:\n<pre>${content || ''}</pre>`;
 		}
 	});
+
+	sessionRenderer.appendChild(inputEl);
 
 	return sessionRenderer;
 };

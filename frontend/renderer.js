@@ -28,6 +28,7 @@ const sessionsBrowser = dom(['.session',
 
 const renderList = (list, files) => {
   list.innerHTML = '';
+	files = files.split("\n").filter(e => e.slice(-1) != '/')
   files.forEach(file => {
     const item = dom(['li', {
       onclick: () => state.currentSession.next(SESSIONS_DIRECTORY + "/" + file),
