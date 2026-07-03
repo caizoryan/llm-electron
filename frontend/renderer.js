@@ -2,6 +2,7 @@ import { dom } from './lib/dom.js';
 import { reactive, memo } from './lib/chowk.js';
 import { createSessionRenderer } from './sessionRenderer.js';
 import { fs } from '../fs.js';
+import { modalPopUp } from './modal.js';
 
 let currentPath = ''
 let SESSIONS_DIRECTORY = '/Users/aaryan/.llm_sessions/'
@@ -20,8 +21,22 @@ const listFiles = fs.listFiles
 // Session Browser
 // ---------------------
 let list = dom(['ul#sessionList', { style: 'list-style: none; padding: 0;' }])
-const sessionsBrowser = dom(['.session', 
-  ['h3', 'Sessions'],
+
+const newSessionBtn = dom(['button.new-session-btn', {
+  onclick: () => modalPopUp('Enter session name:', async (name) => {
+    const sessionPath = SESSIONS_DIRECTORY + name + '.json';
+    const emptySession = [{ role: 'system', content: 'You are a helpful assistant.' }];
+    await writeFile(sessionPath, JSON.stringify(emptySession, null, 2));
+    loadSessions();
+    state.currentSession.next(sessionPath);
+  })
+}, '+ New Session']);
+
+const sessionsBrowser = dom(['.session',
+  ['div.session-header',
+    ['h3', 'Sessions'],
+    newSessionBtn
+  ],
 	list
 ]);
 

@@ -1,11 +1,2 @@
-say helloSession File don't exist or smth
-
-
----- started :  17:48:42
-Hello! How can I help you today?
-
-==finished :  17:48:44 ==
-===time taken : 2.901 ==
-
-DONE
-
+Read through ./frontend/renderer.js and ./frontend/sessionRenderer.js 
+and figure out how to to add a new session button.
