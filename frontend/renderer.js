@@ -1,75 +1,101 @@
+
 import { dom } from './lib/dom.js';
-import { reactive, memo } from './lib/chowk.js';
+import { reactive } from './lib/chowk.js';
 import { createSessionRenderer } from './sessionRenderer.js';
 import { fs } from '../fs.js';
 import { modalPopUp } from './modal.js';
+// import { MD } from './lib/md.js';
+// import { startAgentLoop } from '../agent/agent.js'
+// import { EventTypes } from '../agent/events.js'
 
-let currentPath = ''
-let SESSIONS_DIRECTORY = '/Users/aaryan/.llm_sessions/'
+// ===============================
+// CONSTANTS & CONFIGURATION
+// ===============================
+const SESSIONS_DIRECTORY = '/Users/aaryan/.llm_sessions/';
+const DEFAULT_SYSTEM_PROMPT = 'You are a helpful assistant.';
 
-let state = {
-	currentSession: reactive(''),
-	parsedSession: ''
-}
+// ===============================
+// STATE MANAGEMENT
+// ===============================
+const appState = {
+  currentSession: reactive(''),
+  parsedSession: ''
+};
 
-const readFile = fs.readFile
-const writeFile = fs.writeFile
-const listFiles = fs.listFiles
+// ===============================
+// FILE OPERATIONS
+// ===============================
+const readSessionFile = async (filePath) => {
+  return await fs.readFile(filePath);
+};
 
+const writeSessionFile = async (filePath, content) => {
+  await fs.writeFile(filePath, content);
+};
 
-// ---------------------
-// Session Browser
-// ---------------------
-let list = dom(['ul#sessionList', { style: 'list-style: none; padding: 0;' }])
+const listSessionFiles = async () => {
+  return await fs.listFiles(SESSIONS_DIRECTORY);
+};
 
-const newSessionBtn = dom(['button.new-session-btn', {
-  onclick: () => modalPopUp('Enter session name:', async (name) => {
-    const sessionPath = SESSIONS_DIRECTORY + name + '.json';
-    const emptySession = [{ role: 'system', content: 'You are a helpful assistant.' }];
-    await writeFile(sessionPath, JSON.stringify(emptySession, null, 2));
-    loadSessions();
-    state.currentSession.next(sessionPath);
-  })
-}, '+ New Session']);
+// ===============================
+// SESSION MANAGEMENT
+// ===============================
+const createNewSession = async (sessionName) => {
+  const sessionPath = SESSIONS_DIRECTORY + sessionName + '.json';
+  const emptySession = [{ role: 'system', content: DEFAULT_SYSTEM_PROMPT }];
+  await writeSessionFile(sessionPath, JSON.stringify(emptySession, null, 2));
+  loadSessionList();
+  appState.currentSession.next(sessionPath);
+};
 
-const sessionsBrowser = dom(['.session',
-  ['div.session-header',
-    ['h3', 'Sessions'],
-    newSessionBtn
-  ],
-	list
-]);
-
-
-const renderList = (list, files) => {
-  list.innerHTML = '';
-	files = files.split("\n").filter(e => e.slice(-1) != '/')
+const renderSessionList = (listElement, fileList) => {
+  listElement.innerHTML = '';
+  const files = fileList.split("\n").filter(file => !file.endsWith('/'));
+  
   files.forEach(file => {
-    const item = dom(['li', {
-      onclick: () => state.currentSession.next(SESSIONS_DIRECTORY + "/" + file),
+    const sessionItem = dom(['li', {
+      onclick: () => appState.currentSession.next(SESSIONS_DIRECTORY + file),
     }, file]);
-    list.appendChild(item);
+    listElement.appendChild(sessionItem);
   });
 };
 
-const loadSessions = async () => {
-  list.textContent = 'Loading...';
-  const result = await listFiles(SESSIONS_DIRECTORY);
+const loadSessionList = async () => {
+  sessionListElement.textContent = 'Loading...';
+  const result = await listSessionFiles();
   
   if (result) {
-    renderList(list, result);
+    renderSessionList(sessionListElement, result);
   } else {
-    list.textContent = `Error: ${result.error}`;
+    sessionListElement.textContent = `Error: ${result.error}`;
   }
 };
 
-loadSessions();
+// ===============================
+// UI COMPONENT CREATION
+// ===============================
+const sessionListElement = dom(['ul#sessionList', { 
+  style: 'list-style: none; padding: 0;' 
+}]);
 
-// ---------------------
-// Session Renderer
-// ---------------------
-const sessionRenderer = createSessionRenderer(state, readFile, writeFile);
+const newSessionButton = dom(['button.new-session-btn', {
+  onclick: () => modalPopUp('Enter session name:', createNewSession),
+}, '+ New Session']);
 
-// document.body.appendChild(content);
-document.body.appendChild(sessionsBrowser);
+const sessionBrowser = dom(['.session',
+  ['div.session-header',
+    ['h3', 'Sessions'],
+    newSessionButton
+  ],
+  sessionListElement
+]);
+
+// ===============================
+// INITIALIZATION
+// ===============================
+const sessionRenderer = createSessionRenderer(appState, readSessionFile, writeSessionFile);
+
+document.body.appendChild(sessionBrowser);
 document.body.appendChild(sessionRenderer);
+
+loadSessionList();

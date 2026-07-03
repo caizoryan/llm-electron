@@ -4,304 +4,352 @@ import { MD } from './lib/md.js';
 import { startAgentLoop } from '../agent/agent.js'
 import { EventTypes } from '../agent/events.js'
 
-let estimateTokens = (text) => Math.ceil(text.length / 4);
-let estimateContextSize = parsed => {
-	if (!Array.isArray(parsed)) return estimateTokens(String(parsed));
-	
-	return parsed.reduce((total, item) => {
-		if (item.content) {
-			return total + estimateTokens(item.content);
-		}
-		return total;
-	}, 0);
-}
+// ===============================
+// CONSTANTS & CONFIGURATION
+// ===============================
+const RenderingStrategy = {
+  MD: 'MD',
+  RAW: 'RAW'
+};
 
-const readFileContent = async (path, readFile) => {
-	const result = await readFile(path);
-	return result;
+const MessageRole = {
+  SYSTEM: 'system',
+  USER: 'user', 
+  ASSISTANT: 'assistant',
+  TOOL: 'tool'
+};
+
+
+// ===============================
+// STATE MANAGEMENT
+// ===============================
+let sessionMessages = [];
+let currentSessionPath = null;
+const isAgentRunning = reactive(false);
+const renderingStrategy = reactive(RenderingStrategy.MD);
+const toolCallElements = new Map();
+
+let currentMessageContent = undefined
+let currentMessageReasoning = undefined
+let currentMessageElement = null;
+
+// ===============================
+// UTILITY FUNCTIONS
+// ===============================
+const estimateTokenCount = (text) => Math.ceil(text.length / 4);
+
+const estimateContextSize = (parsedSession) => {
+  if (!Array.isArray(parsedSession)) return estimateTokenCount(String(parsedSession));
+  
+  return parsedSession.reduce((total, item) => {
+    return total + (item.content ? estimateTokenCount(item.content) : 0);
+  }, 0);
+};
+
+const readSessionContent = async (path, readFile) => {
+  const result = await readFile(path);
+  return result;
 };
 
 const parseSessionContent = (content) => {
-	try {
-		return JSON.parse(content);
-	} catch (e) {
-		throw new Error(`Error parsing JSON: ${e.message}`);
-	}
+  try {
+    return JSON.parse(content);
+  } catch (e) {
+    throw new Error(`Error parsing JSON: ${e.message}`);
+  }
 };
 
-const STRATEGY = reactive('MD'); // 'RAW' | 'MD'
+// ===============================
+// EVENT HANDLERS
+// ===============================
+const startAssistantMessage = () => {
+	if (currentMessageElement) return
+  currentMessageContent = reactive('');
+  currentMessageReasoning = reactive('');
+  currentMessageElement = createSessionItemElement(
+    MessageRole.ASSISTANT,
+    createThinkingBlock(currentMessageReasoning),
+    memo(() => MD(currentMessageContent.value()), [currentMessageContent])
+  );
+  sessionRenderer.appendChild(currentMessageElement);
+};
 
-let messages =[]
-let currentSessionPath = null
-const isAgentRunning = reactive(false)
+const endAssistantMessage = () => {
+  currentMessageContent = undefined;
+  currentMessageReasoning = undefined;
+  currentMessageElement = undefined;
+};
 
-let currentContent = undefined
-let currentReasoning = undefined
-let currentElement = undefined
+const eventHandlers = {
+  [EventTypes.USER_MESSAGE]: (event) => {
+    const messageItem = createSessionItemElement(MessageRole.USER, MD(event.content));
+    sessionRenderer.appendChild(messageItem);
+  },
 
-let startAgentMessageRender = () => {
-	currentContent = reactive('')
-	currentReasoning = reactive('')
-	currentElement = constructSessionItemElement(
-		'assistant',
-		thinkingBlock(currentReasoning),
-		memo(() => MD(currentContent.value()), [currentContent])
-	)
+  [EventTypes.RESPONSE_START]: () => isAgentRunning.next(true),
 
-	sessionRenderer.appendChild(currentElement)
-}
-let endAgentMessageRender = () => (currentContent=undefined, currentReasoning=undefined, currentElement=undefined)
+  [EventTypes.THINKING_DELTA]: (event) => {
+    startAssistantMessage();
+    currentMessageReasoning?.next(value => value + event.delta);
+  },
 
-const pipe = (event) => {
+  [EventTypes.TEXT_DELTA]: (event) => {
+    startAssistantMessage();
+    currentMessageContent?.next(value => value + event.delta);
+  },
 
-  switch (event.type) {
-    case EventTypes.USER_MESSAGE:
-			sessionRenderer.appendChild(renderSessionItem({ role: 'user', content: event.content }))
-      break
+  [EventTypes.TOOL_CALL]: (event) => {
+    endAssistantMessage();
+    const toolCallItem = createToolCallItem({ tool_calls: [event.tool_call] });
+    sessionRenderer.appendChild(toolCallItem);
+  },
 
-    case EventTypes.RESPONSE_START:
-      isAgentRunning.next(true)
-      break
+  [EventTypes.TOOL_RESULT]: (event) => {
+    endAssistantMessage();
+    const toolResultItem = createToolCallResult(event);
+    sessionRenderer.appendChild(toolResultItem);
+  },
 
-    case EventTypes.THINKING_DELTA:
-			if (!currentReasoning) startAgentMessageRender()
-			currentReasoning.next(v => v+ event.delta)
-      break
-      
-    case EventTypes.TEXT_DELTA:
-			if (!currentReasoning) startAgentMessageRender()
-      if (currentContent) {
-				currentContent.next(v => v+ event.delta)
-      }
-      break
-      
-    case EventTypes.TOOL_CALL:
-			endAgentMessageRender()
-			sessionRenderer.appendChild(toolCallItem({tool_calls: [event.tool_call]}))
+  [EventTypes.RESPONSE_END]: () => {
+    isAgentRunning.next(false);
+    console.log(sessionMessages);
+  },
 
-      break
-      
-    case EventTypes.TOOL_RESULT:
-			endAgentMessageRender()
-			sessionRenderer.appendChild(toolCallResult(event))
-      break
-      
-    case EventTypes.RESPONSE_END:
-      isAgentRunning.next(false)
-			console.log(messages)
-      break
-      
-    case EventTypes.ERROR:
-      isAgentRunning.next(false)
-      break
-  }
-}
+  [EventTypes.ERROR]: () => isAgentRunning.next(false),
+};
 
-isAgentRunning.subscribe(v => v ? null : endAgentMessageRender())
+const handleAgentEvent = (event) => {
+  const handler = eventHandlers[event.type];
+  handler?.(event);
+};
 
-const toolCallRequests = { }
+isAgentRunning.subscribe(value => value ? null : endAssistantMessage());
 
-const thinkingBlock = (reasoningContent) => {
-  if (!reasoningContent) return null
+// ===============================
+// UI COMPONENT CREATORS
+// ===============================
+const createThinkingBlock = (reasoningContent) => {
+  if (!reasoningContent) return null;
   
-  const open = reactive(true)
-  return dom(['div.thinking-block'
-		, { open: memo(() => open.value() ? 'true' : 'false', [open]) },
-    ['div.thinking-header', { onclick: () => open.next(v => !v) },
+  const isOpen = reactive(true);
+  
+  return dom(['div.thinking-block',
+    { open: memo(() => isOpen.value() ? 'true' : 'false', [isOpen]) },
+    ['div.thinking-header', { 
+      onclick: () => isOpen.next(value => !value) 
+    },
       'Thinking...',
-      ['span.toggle-icon', memo(() => open.value() ? '▼' : '▶', [open])]
+      ['span.toggle-icon', memo(() => isOpen.value() ? '▼' : '▶', [isOpen])]
     ],
     ['div.thinking-content',
       ['pre', reasoningContent]
     ]
-  ])
-}
-
-const toolCallMinifiy = (tool_call) => {
-	let item = ['.tool-call']
-	let name = tool_call.function.name
-	let args = JSON.parse(tool_call.function.arguments)
-	let tokenUse =` (${estimateTokens(JSON.stringify(tool_call.function))})`
-	let line = ['div.tool-name', "[ ", name + ":", ]
-
-	if (name == 'read') line.push(['span', args.file_path])
-	else if (name == 'write') line.push(['span', args.file_path])
-	else if (name == 'list') line.push(['span', args.path])
-
-	line.push(" ]")
-	item.push(line)
-
-
-	return (dom(item))
-}
-
-const toolCallItem = (item) => {
-	const open = reactive(false)
-	const toolCallsEl = ['div.tool-calls', {onclick: () => open.next(e=>!e)}];
-	const toolCallsMini =['div.tool-calls', {onclick: () => open.next(e=>!e)}]
-
-	item.tool_calls.forEach(tool_call => {
-		const func = tool_call.function;
-		const args = Object.entries(JSON.parse(func.arguments))
-			.map(([key, value]) => 
-				['.tool-args', 
-					['p.key', key],
-					['pre.value', value],
-				])
-
-		toolCallRequests[tool_call.id] = dom(['div.tool-call',
-			['div.tool-name', func.name],
-			...args
-		])
-
-		toolCallsEl.push(toolCallRequests[tool_call.id]);
-		toolCallsMini.push(toolCallMinifiy(tool_call));
-	});
-
-	return dom(['div.session-item.tool', {role: item.role},
-		memo(() => open.value() 
-			? toolCallsEl
-			: toolCallsMini,
-		[open])
-	]);
-}
-
-const toolCallResult = (item) => {
-	const toolResult = dom(['div.tool-result', ['pre', item.content]]);
-	toolCallRequests[item.tool_call_id]?.appendChild(toolResult)
-
-	return dom(['span'])
-}
-
-const sessionItemMD = (item) => {
-	if (item.role == 'system') return dom(['div.system', '']);
-
-	if (item.role == 'assistant' 
-		&& (!item.content || item.content == '')
-		&& item.tool_calls) 
-	{
-		return toolCallItem(item)
-	}
-
-	if (item.role == 'tool') {
-		return toolCallResult(item)
-	}
-
-	// Build message with optional thinking block
-	const children = []
-	let contentEl
-	let thinkingEl 
-	if (item.reasoning_content && item.role === 'assistant') {
-		thinkingEl = (thinkingBlock(item.reasoning_content))
-	}
-
-	if (item.content) {
-		 contentEl = MD(item.content)
-	}
-
-	return constructSessionItemElement(item.role, contentEl, thinkingEl)
+  ]);
 };
 
-const constructSessionItemElement = (role, content, thinking) => {
-	const open = reactive(false)
-	let el = ['div.session-item', 
-		{ role: role, onclick: e => open.next(e => !e), open },
-	]
-
-	thinking ? el.push(thinking) : null
-	Array.isArray(content) ? el.push(...content) : el.push(content)
-
-	return dom(el)
-}
-
-const sessionItemRAW = (item) => {
-	return dom(['pre', {
-		class: 'session-item'
-	}, JSON.stringify(item, null, 2)]);
+const createMinimizedToolCall = (toolCall) => {
+  const functionName = toolCall.function.name;
+  const args = JSON.parse(toolCall.function.arguments);
+  const tokenEstimate = estimateTokenCount(JSON.stringify(toolCall.function));
+  
+  let argDisplay;
+  if (functionName === 'read' || functionName === 'write') {
+    argDisplay = ['span', args.file_path];
+  } else if (functionName === 'list') {
+    argDisplay = ['span', args.path];
+  } else {
+    argDisplay = ['span', JSON.stringify(args)];
+  }
+  
+  return dom(['.tool-call',
+    ['div.tool-name', 
+      '[ ', functionName + ':',
+      argDisplay,
+      ' ]', 
+      ` (${tokenEstimate} tokens)`
+    ]
+  ]);
 };
+
+const createToolCallItem = (item) => {
+  const isOpen = reactive(false);
+  const expandedToolCalls = ['div.tool-calls', { onclick: () => isOpen.next(value => !value) }];
+  const minimizedToolCalls = ['div.tool-calls', { onclick: () => isOpen.next(value => !value) }];
+
+  item.tool_calls.forEach(toolCall => {
+    const func = toolCall.function;
+    const args = Object.entries(JSON.parse(func.arguments))
+      .map(([key, value]) => 
+        ['.tool-args', 
+          ['p.key', key],
+          ['pre.value', value],
+        ]);
+
+    toolCallElements[toolCall.id] = dom(['div.tool-call',
+      ['div.tool-name', func.name],
+      ...args
+    ]);
+
+    expandedToolCalls.push(toolCallElements[toolCall.id]);
+    minimizedToolCalls.push(createMinimizedToolCall(toolCall));
+  });
+
+  return dom(['div.session-item.tool', { role: item.role },
+    memo(() => isOpen.value() 
+      ? expandedToolCalls
+      : minimizedToolCalls,
+      [isOpen])
+  ]);
+};
+
+const createToolCallResult = (item) => {
+  const toolResult = dom(['div.tool-result', ['pre', item.content]]);
+  toolCallElements[item.tool_call_id]?.appendChild(toolResult);
+
+  return dom(['span']);
+};
+
+const createMarkdownSessionItem = (item) => {
+  if (item.role == MessageRole.SYSTEM) return dom(['div.system', '']);
+
+  if (item.role == MessageRole.ASSISTANT 
+    && (!item.content || item.content == '')
+    && item.tool_calls) 
+  {
+    return createToolCallItem(item);
+  }
+
+  if (item.role == MessageRole.TOOL) {
+    return createToolCallResult(item);
+  }
+
+  let contentEl;
+  let thinkingEl;
+  
+  if (item.reasoning_content && item.role === MessageRole.ASSISTANT) {
+    thinkingEl = createThinkingBlock(item.reasoning_content);
+  }
+
+  if (item.content) {
+    contentEl = MD(item.content);
+  }
+
+  return createSessionItemElement(item.role, contentEl, thinkingEl);
+};
+
+const createRawSessionItem = (item) => {
+  return dom(['pre', {
+    class: 'session-item'
+  }, JSON.stringify(item, null, 2)]);
+};
+
+const createSessionItemElement = (role, content, thinking) => {
+  const isOpen = reactive(false);
+  let element = ['div.session-item', 
+    { role: role, onclick: event => isOpen.next(value => !value), open },
+  ];
+
+  thinking ? element.push(thinking) : null;
+  Array.isArray(content) ? element.push(...content) : element.push(content);
+
+  return dom(element);
+};
+
+const createStrategyControls = () => {
+  return dom(['.buttons', 
+    ['button', { onclick: () => renderingStrategy.next(RenderingStrategy.MD) }, 'MD'],
+    ['button', { onclick: () => renderingStrategy.next(RenderingStrategy.RAW) }, 'RAW'],
+  ]);
+};
+
+// ===============================
+// SESSION RENDERER CREATION
+// ===============================
+const sessionRenderer = dom('.session-renderer');
+let inputAreaElement = null;
 
 const renderSessionItem = (item) => {
-	if (STRATEGY.value() == 'RAW') return sessionItemRAW(item);
-	else if (STRATEGY.value() == 'MD') return sessionItemMD(item);
+  if (renderingStrategy.value() === RenderingStrategy.RAW) {
+    return createRawSessionItem(item);
+  } else {
+    return createMarkdownSessionItem(item);
+  }
 };
 
-const mdraw = ['.buttons', 
-	['button', {onclick: () => STRATEGY.next("MD")}, 'MD'],
-	['button', {onclick: () => STRATEGY.next("RAW")}, 'RAW'],
-];
+const renderSession = (messages) => {
+  sessionRenderer.innerHTML = '';
+  
+  sessionRenderer.appendChild(createStrategyControls());
+  
+  sessionRenderer.appendChild(dom([
+    'p', 
+    'Context size: ' + estimateContextSize(messages) + ' tokens'
+  ]));
+  
+  sessionRenderer.appendChild(inputAreaElement);
 
-const sessionRenderer = dom('.session-renderer');
+  if (Array.isArray(messages)) {
+    messages.forEach(message => {
+      sessionRenderer.appendChild(renderSessionItem(message));
+    });
+  } else {
+    sessionRenderer.appendChild(renderSessionItem(messages));
+  }
+  
+  sessionRenderer.appendChild(inputAreaElement);
+  
+  sessionMessages = messages;
+};
+
 const createSessionRenderer = (state, readFile, writeFile) => {
-	document.addEventListener('keydown', async (e) => {
-		currentSessionPath = state.currentSession.value()
-		console.log(currentSessionPath, writeFile)
-		console.log(currentSessionPath, state)
-		console.log(typeof writeFile)
-		if ((e.metaKey || e.ctrlKey) && e.key === 's') {
-			e.preventDefault();
-			if (currentSessionPath && writeFile) {
-				try {
-					await writeFile(currentSessionPath, JSON.stringify(messages, null, 2));
-					console.log('Session saved to', currentSessionPath);
-				} catch (err) {
-					console.error('Failed to save session:', err);
-				}
-			}
-		}
-	});
-	// TODO: Make this a codemirror element...
-	const inputEl = dom(['textarea.prompt-box', {
-		// disabled: memo(() => isAgentRunning.value()),
-		onkeydown: async (e) => {
-			if (e.key === 'Enter' && !e.shiftKey) {
-				e.preventDefault()
-				const prompt = inputEl.value.trim()
-				if (!prompt || isAgentRunning.value()) return
-				
-				inputEl.value = ''
-				isAgentRunning.next(true)
+  document.addEventListener('keydown', async (event) => {
+    currentSessionPath = state.currentSession.value();
+    
+    if ((event.metaKey || event.ctrlKey) && event.key === 's') {
+      event.preventDefault();
+      if (currentSessionPath && writeFile) {
+        try {
+          await writeFile(currentSessionPath, JSON.stringify(sessionMessages, null, 2));
+          console.log('Session saved to', currentSessionPath);
+        } catch (err) {
+          console.error('Failed to save session:', err);
+        }
+      }
+    }
+  });
 
-				await startAgentLoop(prompt, messages, pipe)
-			}
-		}
-	}])
+  inputAreaElement = dom(['textarea.prompt-box', {
+    onkeydown: async (event) => {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        const prompt = inputAreaElement.value.trim();
+        if (!prompt || isAgentRunning.value()) return;
+        
+        inputAreaElement.value = '';
+        isAgentRunning.next(true);
 
-	// should happen only once...
-	const renderSession = (messages) => {
-		sessionRenderer.innerHTML = '';
-		sessionRenderer.appendChild(dom(mdraw));
-		sessionRenderer.appendChild(dom(['p', 'size:' + estimateContextSize(messages)]))
-		sessionRenderer.appendChild(inputEl);
+        await startAgentLoop(prompt, sessionMessages, handleAgentEvent);
+      }
+    }
+  }]);
 
-		if (Array.isArray(messages)) {
-			messages.forEach(item => {
-				sessionRenderer.appendChild(renderSessionItem(item));
-			});
-		} else {
-			sessionRenderer.appendChild(renderSessionItem(messages));
-		}
-		
-		// Re-append input box after rendering
-	};
+  renderingStrategy.subscribe(value => renderSession(sessionMessages));
 
-	STRATEGY.subscribe(v => renderSession(messages));
+  state.currentSession.subscribe(async (path) => {
+    if (!path) return;
+    try {
+      const content = await readSessionContent(path, readFile);
+      const parsed = parseSessionContent(content);
+      sessionMessages = parsed;
+      renderSession(parsed);
+    } catch (e) {
+      console.error("Error loading session:", e);
+    }
+  });
 
-	state.currentSession.subscribe(async (path) => {
-		if (!path) return;
-		try {
-			const content = await readFileContent(path, readFile);
-			const parsed = parseSessionContent(content);
-			messages = parsed;
-			renderSession(parsed);
-		} catch (e) {
-			console.error("TF?", e)
-			// sessionRenderer.innerHTML = `${e.message}\n\nRaw content:\n<pre>${content || ''}</pre>`;
-		}
-	});
+  sessionRenderer.appendChild(inputAreaElement);
 
-	sessionRenderer.appendChild(inputEl);
-
-	return sessionRenderer;
+  return sessionRenderer;
 };
 
-export { createSessionRenderer, STRATEGY };
+export { createSessionRenderer, renderingStrategy };
