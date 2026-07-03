@@ -37,9 +37,11 @@ body {
 	background: var(--bg);
 	color: var(--col);
 	padding: 20px;
-	max-width: 900px;
 	margin: 0 auto;
 	padding-bottom: 20vh;
+	display: grid;
+	grid-template-columns: 30% 65%;
+	grid-gap: 4em;
 }
 
 
@@ -106,7 +108,9 @@ h4,h5,h6 {
 
 /* Session Styles */
 .session {
-	margin-top: 3em;
+	border-right: 2px solid;
+	padding: 1em;
+	padding-right: 3em;
 }
 
 /* Session List */
@@ -133,6 +137,10 @@ h4,h5,h6 {
 .session-renderer {
 	margin-top: 2em;
 	padding-bottom: 20vh;
+	margin-top: 2em;
+	padding-bottom: 20vh;
+	height: 100vh;
+	overflow-y: scroll;
 }
 
 .session-item {
@@ -285,16 +293,17 @@ button:active {
 	transform: translateY(1px);
 }
 
-/* Thinking Block Styles */
-.thinking-block {
+/* narrativization Block Styles */
+.narrativization-block {
   background: var(--bg);
   border: 0.5px solid var(--col);
   margin: 0.5em 0;
   font-size: 0.85em;
+	margin-bottom: 2em;
   overflow: hidden;
 }
 
-.thinking-header {
+.narrativization-header {
   background: var(--col);
   color: var(--bg);
   padding: 0.5em 0.75em;
@@ -306,27 +315,33 @@ button:active {
   transition: background 0.2s ease;
 }
 
-.thinking-header:hover {
+.narrativization-header:hover {
   background: var(--bg);
   color: var(--col);
 }
 
-.thinking-header .toggle-icon {
+.narrativization-header .toggle-icon {
   font-size: 0.8em;
 }
 
-.thinking-content {
+.fold-header:hover{
+  background: var(--col);
+  color: var(--bg);
+	cursor: pointer;
+}
+
+.narrativization-content {
   padding: 0.75em;
   display: none;
 }
 
-.thinking-block[open='true'] .thinking-content {
+.narrativization-block[open='true'] .narrativization-content {
   display: block;
 	max-height: 400px;
 	overflow-y: scroll;
 }
 
-.thinking-content pre {
+.narrativization-content pre {
   white-space: pre-wrap;
   word-wrap: break-word;
 }

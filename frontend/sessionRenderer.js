@@ -19,7 +19,6 @@ const MessageRole = {
   TOOL: 'tool'
 };
 
-
 // ===============================
 // STATE MANAGEMENT
 // ===============================
@@ -68,7 +67,7 @@ const startAssistantMessage = () => {
   currentMessageReasoning = reactive('');
   currentMessageElement = createSessionItemElement(
     MessageRole.ASSISTANT,
-    createThinkingBlock(currentMessageReasoning),
+    createNarrativizationBlock(currentMessageReasoning),
     memo(() => MD(currentMessageContent.value()), [currentMessageContent])
   );
   sessionRenderer.appendChild(currentMessageElement);
@@ -86,7 +85,7 @@ const eventHandlers = {
     sessionRenderer.appendChild(messageItem);
   },
   [EventTypes.RESPONSE_START]: () => isAgentRunning.next(true),
-  [EventTypes.THINKING_DELTA]: (event) => {
+  [EventTypes.narrativization_DELTA]: (event) => {
     startAssistantMessage();
     currentMessageReasoning?.next(value => value + event.delta);
   },
@@ -122,20 +121,19 @@ isAgentRunning.subscribe(value => value ? null : endAssistantMessage());
 // ===============================
 // UI COMPONENT CREATORS
 // ===============================
-const createThinkingBlock = (reasoningContent) => {
+const createNarrativizationBlock = (reasoningContent) => {
   if (!reasoningContent) return null;
+  const isOpen = reactive(false);
   
-  const isOpen = reactive(true);
-  
-  return dom(['div.thinking-block',
+  return dom(['div.narrativization-block',
     { open: memo(() => isOpen.value() ? 'true' : 'false', [isOpen]) },
-    ['div.thinking-header', { 
+    ['div.narrativization-header', { 
       onclick: () => isOpen.next(value => !value) 
     },
-      'Thinking...',
+      'Narrativization...',
       ['span.toggle-icon', memo(() => isOpen.value() ? '▼' : '▶', [isOpen])]
     ],
-    ['div.thinking-content',
+    ['div.narrativization-content',
       ['pre', reasoningContent]
     ]
   ]);
@@ -144,13 +142,17 @@ const createThinkingBlock = (reasoningContent) => {
 const createMinimizedToolCall = (toolCall) => {
   const functionName = toolCall.function.name;
   const args = JSON.parse(toolCall.function.arguments);
-  const tokenEstimate = estimateTokenCount(JSON.stringify(toolCall.function));
+  // const tokenEstimate = estimateTokenCount(JSON.stringify(toolCall.function));
   
   let argDisplay;
   if (functionName === 'read' || functionName === 'write') {
     argDisplay = ['span', args.file_path];
   } else if (functionName === 'list') {
     argDisplay = ['span', args.path];
+  } else if (functionName === 'replace') {
+    argDisplay = ['span', args.file_path];
+  } else if (functionName === 'append') {
+    argDisplay = ['span', args.file_path];
   } else {
     argDisplay = ['span', JSON.stringify(args)];
   }
@@ -160,7 +162,7 @@ const createMinimizedToolCall = (toolCall) => {
       '[ ', functionName + ':',
       argDisplay,
       ' ]', 
-      ` (${tokenEstimate} tokens)`
+      // ` (${tokenEstimate} tokens)`
     ]
   ]);
 };
@@ -218,17 +220,17 @@ const createMarkdownSessionItem = (item) => {
   }
 
   let contentEl;
-  let thinkingEl;
+  let narrativizationEl;
   
   if (item.reasoning_content && item.role === MessageRole.ASSISTANT) {
-    thinkingEl = createThinkingBlock(item.reasoning_content);
+    narrativizationEl = createNarrativizationBlock(item.reasoning_content);
   }
 
   if (item.content) {
     contentEl = MD(item.content);
   }
 
-  return createSessionItemElement(item.role, contentEl, thinkingEl);
+  return createSessionItemElement(item.role, contentEl, narrativizationEl);
 };
 
 const createRawSessionItem = (item) => {
@@ -237,14 +239,18 @@ const createRawSessionItem = (item) => {
   }, JSON.stringify(item, null, 2)]);
 };
 
-const createSessionItemElement = (role, content, thinking) => {
-  const isOpen = reactive(false);
-  let element = ['div.session-item', 
-    { role: role, onclick: event => isOpen.next(value => !value), open },
-  ];
+const createSessionItemElement = (role, content, narrativization) => {
+  const isOpen = reactive(true);
+	// let fold = memo(() => isOpen.value() ? 'fold': 'unfold', [isOpen])
+  let element = ['div.session-item', { role, open:isOpen },
+    ['div.fold-header', { 
+      onclick: () => isOpen.next(value => !value) 
+    }, ['span.toggle-icon', memo(() => isOpen.value() ? '▼' : '▶', [isOpen])]],
+	];
 
-  thinking ? element.push(thinking) : null;
+  narrativization ? element.push(narrativization) : null;
   Array.isArray(content) ? element.push(...content) : element.push(content);
+	// element.push(['button', { onclick: _ => isOpen.next(value => !value) }, 'close'])
 
   return dom(element);
 };
