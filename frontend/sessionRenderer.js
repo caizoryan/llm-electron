@@ -85,25 +85,20 @@ const eventHandlers = {
     const messageItem = createSessionItemElement(MessageRole.USER, MD(event.content));
     sessionRenderer.appendChild(messageItem);
   },
-
   [EventTypes.RESPONSE_START]: () => isAgentRunning.next(true),
-
   [EventTypes.THINKING_DELTA]: (event) => {
     startAssistantMessage();
     currentMessageReasoning?.next(value => value + event.delta);
   },
-
   [EventTypes.TEXT_DELTA]: (event) => {
     startAssistantMessage();
     currentMessageContent?.next(value => value + event.delta);
   },
-
   [EventTypes.TOOL_CALL]: (event) => {
     endAssistantMessage();
     const toolCallItem = createToolCallItem({ tool_calls: [event.tool_call] });
     sessionRenderer.appendChild(toolCallItem);
   },
-
   [EventTypes.TOOL_RESULT]: (event) => {
     endAssistantMessage();
     const toolResultItem = createToolCallResult(event);
@@ -114,7 +109,6 @@ const eventHandlers = {
     isAgentRunning.next(false);
     console.log(sessionMessages);
   },
-
   [EventTypes.ERROR]: () => isAgentRunning.next(false),
 };
 
