@@ -3,6 +3,16 @@ import fs from 'fs';
 export default  {
 	readFile: async (event, [filePath]) => {
 		try {
+			const stats = fs.statSync(filePath);
+			const MAX_FILE_SIZE = 1024 * 1024; // 1MB
+			
+			if (stats.size > MAX_FILE_SIZE) {
+				return { 
+					success: false, 
+					error: 'File too large to read (max 1MB)' 
+				};
+			}
+			
 			const content = fs.readFileSync(filePath, 'utf-8');
 			return { success: true, content };
 		} catch (error) {

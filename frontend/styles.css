@@ -17,7 +17,7 @@
 
 	/* Default colors */
 	--bg: var(--green-bg);
-	--col: var(--green-col);
+	--col: var(--yellow-col);
 }
 
 * {
@@ -33,7 +33,7 @@
 }
 
 body {
-	font-family: monospace;
+	font-family: ABC Diatype Variable Unlicensed Trial;
 	background: var(--bg);
 	color: var(--col);
 	padding: 20px;
@@ -42,6 +42,9 @@ body {
 	display: grid;
 	grid-template-columns: 30% 65%;
 	grid-gap: 4em;
+	font-size: 14px;
+	width: 100vw;
+	height: 100vh;
 }
 
 
@@ -255,6 +258,10 @@ h4,h5,h6 {
 	font-size: 0.9em;
 }
 
+pre {
+	font-size: .85em;
+}
+
 .session-item pre {
 	background: var(--col);
 	color: var(--bg);
@@ -419,6 +426,21 @@ button:active {
   margin-bottom: 1em;
 }
 
+*[hide='true']{
+	display: none;
+}
+
 .session-header h3 {
   margin: 0;
+}
+
+table {
+    border-collapse: collapse;
+    margin: 2em 0;
+}
+td {
+	padding: .25em .75em
+}
+table, th, td {
+    border: 1px solid var(--col);
 }

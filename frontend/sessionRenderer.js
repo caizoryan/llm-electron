@@ -123,10 +123,20 @@ isAgentRunning.subscribe(value => value ? null : endAssistantMessage());
 // ===============================
 const createNarrativizationBlock = (reasoningContent) => {
   if (!reasoningContent) return null;
+
+	const isEmpty = reasoningContent.isReactive 
+		? memo(() => reasoningContent.value() != '', [reasoningContent]) 
+		: reasoningContent 
+			? reasoningContent != '' 
+			: false
+
   const isOpen = reactive(false);
   
   return dom(['div.narrativization-block',
-    { open: memo(() => isOpen.value() ? 'true' : 'false', [isOpen]) },
+    { 
+			hide: isEmpty,
+			open: memo(() => isOpen.value() ? 'true' : 'false', [isOpen]),
+		},
     ['div.narrativization-header', { 
       onclick: () => isOpen.next(value => !value) 
     },

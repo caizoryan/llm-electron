@@ -4,15 +4,13 @@ import { reactive } from './lib/chowk.js';
 import { createSessionRenderer } from './sessionRenderer.js';
 import { fs } from '../fs.js';
 import { modalPopUp } from './modal.js';
-// import { MD } from './lib/md.js';
-// import { startAgentLoop } from '../agent/agent.js'
-// import { EventTypes } from '../agent/events.js'
+import { systemPrompt } from '../agent/systemPrompt.js';
 
 // ===============================
 // CONSTANTS & CONFIGURATION
 // ===============================
 const SESSIONS_DIRECTORY = '/Users/aaryan/.llm_sessions/';
-const DEFAULT_SYSTEM_PROMPT = 'You are a helpful assistant.';
+const DEFAULT_SYSTEM_PROMPT = systemPrompt;
 
 // ===============================
 // STATE MANAGEMENT
