@@ -76,6 +76,7 @@ const parseSessionContent = (content) => {
 // ===============================
 const startAssistantMessage = () => {
 	if (currentMessageElement) return
+
   currentMessageContent = reactive('');
   currentMessageReasoning = reactive('');
   currentMessageElement = createSessionItemElement(
@@ -83,6 +84,7 @@ const startAssistantMessage = () => {
     createNarrativizationBlock(currentMessageReasoning),
     memo(() => MD(currentMessageContent.value()), [currentMessageContent])
   );
+
   sessionRenderer.appendChild(currentMessageElement);
 };
 
@@ -98,7 +100,7 @@ const eventHandlers = {
     sessionRenderer.appendChild(messageItem);
   },
   [EventTypes.RESPONSE_START]: () => isAgentRunning.next(true),
-  [EventTypes.narrativization_DELTA]: (event) => {
+  [EventTypes.REASONING_DELTA]: (event) => {
     startAssistantMessage();
     currentMessageReasoning?.next(value => value + event.delta);
   },
@@ -119,7 +121,6 @@ const eventHandlers = {
 
   [EventTypes.RESPONSE_END]: () => {
     isAgentRunning.next(false);
-    console.log(sessionMessages);
   },
   [EventTypes.ERROR]: () => isAgentRunning.next(false),
 };
@@ -249,8 +250,6 @@ const createMarkdownSessionItem = (item) => {
 		&& item.reasoning_content != '' 
 		&& item.reasoning_content != '\n'
 		&& item.role === MessageRole.ASSISTANT) {
-		console.log('REASONING: ', item.reasoning_content)
-		console.log('is \\n', item.reasoning_content == '\n')
     narrativizationEl = createNarrativizationBlock(item.reasoning_content);
   }
 
@@ -276,8 +275,8 @@ const createSessionItemElement = (role, content, narrativization) => {
 	];
 
 	if (!content && !narrativization){
-		console.log("BRUH EMPTY MESSAGE PRUNE")
-		return dom(['span'])
+		console.log("BRUH EMPTY MESSAGE ???")
+		return dom(['span', 'empty'])
 	}
 
   narrativization ? element.push(narrativization) : null;
