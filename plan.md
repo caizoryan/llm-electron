@@ -126,14 +126,26 @@ Example: "max"
 
 ## 12. Model Selection
 
-- [ ] Research available models in OpenCode Go API (endpoint, model list, parameter format)
-- [ ] Create a file documenting available model details (e.g., `models.json` or `models.md`)
-- [ ] Add `model` reactive state in frontend
-- [ ] Add model selection dropdown UI in session header
-- [ ] Update `callZAPI` in `agent/agent.js` to use selected model instead of hardcoded `GLM-4.7`
-- [ ] Selected model is used per message, no persistence required
+- [x] Research available models in OpenCode Go API (endpoint, model list, parameter format)
+- [x] Create a file documenting available model details (e.g., `models.json` or `models.md`)
+- [x] Add `model` reactive state in frontend
+- [x] Add model selection dropdown UI in session header
+- [x] Update agent paths (`startAgentLoop` → `runAgentTurn` → `opencodeAPI`) to accept and forward model parameter
+- [x] Selected model is used per message, no persistence required
 
-## 13. Token Usage Tracking
+## 13. Custom Model Dropdown UI
+
+- [ ] Create custom styled dropdown component (replacing native `<select>`)
+  - [ ] Design dropdown with custom CSS (border, background, hover states, chevron)
+  - [ ] Implement click-to-open behavior with option list overlay
+  - [ ] Display model ID and optionally a display name
+  - [ ] Close dropdown on option select or click outside
+  - [ ] Animate open/close transitions
+  - [ ] Ensure dropdown works with existing reactive state
+
+> Native `<select>` is functional but ugly. Custom dropdown should match the app's aesthetic.
+
+## 14. Token Usage Tracking
 
 - [ ] Research how to extract token usage from OpenCode Go API responses
 - [ ] Add token usage display in session UI (per message and total session)
