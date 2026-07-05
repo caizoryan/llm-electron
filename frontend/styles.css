@@ -45,6 +45,9 @@ body {
 	font-size: 14px;
 	width: 100vw;
 	height: 100vh;
+	position: fixed;
+	top: 0;
+	left: 0;
 }
 
 
@@ -141,9 +144,9 @@ h4,h5,h6 {
 	margin-top: 2em;
 	padding-bottom: 20vh;
 	margin-top: 2em;
-	padding-bottom: 20vh;
 	height: 100vh;
 	overflow-y: scroll;
+	padding-bottom: 400px;
 }
 
 .session-item {
@@ -364,7 +367,9 @@ button:active {
 	color: var(--bg);
 	padding: 1em;
 	max-width: 700px;
-	height: 120px;
+	min-height: 120px;
+	max-height: 300px;
+	overflow-y: auto;
 }
 
 .prompt-box:focus {

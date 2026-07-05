@@ -3,6 +3,19 @@ import { memo, reactive } from './lib/chowk.js';
 import { MD } from './lib/md.js';
 import { startAgentLoop } from '../agent/agent.js'
 import { EventTypes } from '../agent/events.js'
+// import { EditorView, EditorState, basicSetup, vim, Vim } from './lib/codemirror/bundled.js';
+
+import * as cm from "./lib/codemirror/codemirror.js"
+const { basicSetup,EditorView, Vim, vim} = cm
+const { EditorState } = cm.state
+//
+// const { indentWithTab } = cm.commands
+// const { keymap, showTooltip } = cm.view
+// const { toggleFold, foldAll,   HighlightStyle, syntaxHighlighting,  } = cm.language
+// const { javascript } = cm.lang_javascript
+// const { tags } = cm.lezer_higlight
+// const { lintGutter, linter, openLintPanel } = cm.lint
+// const { autocompletion, completeFromList } = cm.autocomplete
 
 // ===============================
 // CONSTANTS & CONFIGURATION
@@ -134,7 +147,7 @@ const createNarrativizationBlock = (reasoningContent) => {
   
   return dom(['div.narrativization-block',
     { 
-			hide: isEmpty,
+			// hide: isEmpty,
 			open: memo(() => isOpen.value() ? 'true' : 'false', [isOpen]),
 		},
     ['div.narrativization-header', { 
@@ -232,7 +245,12 @@ const createMarkdownSessionItem = (item) => {
   let contentEl;
   let narrativizationEl;
   
-  if (item.reasoning_content && item.role === MessageRole.ASSISTANT) {
+  if (item.reasoning_content 
+		&& item.reasoning_content != '' 
+		&& item.reasoning_content != '\n'
+		&& item.role === MessageRole.ASSISTANT) {
+		console.log('REASONING: ', item.reasoning_content)
+		console.log('is \\n', item.reasoning_content == '\n')
     narrativizationEl = createNarrativizationBlock(item.reasoning_content);
   }
 
@@ -251,12 +269,16 @@ const createRawSessionItem = (item) => {
 
 const createSessionItemElement = (role, content, narrativization) => {
   const isOpen = reactive(true);
-	// let fold = memo(() => isOpen.value() ? 'fold': 'unfold', [isOpen])
   let element = ['div.session-item', { role, open:isOpen },
     ['div.fold-header', { 
       onclick: () => isOpen.next(value => !value) 
     }, ['span.toggle-icon', memo(() => isOpen.value() ? '▼' : '▶', [isOpen])]],
 	];
+
+	if (!content && !narrativization){
+		console.log("BRUH EMPTY MESSAGE PRUNE")
+		return dom(['span'])
+	}
 
   narrativization ? element.push(narrativization) : null;
   Array.isArray(content) ? element.push(...content) : element.push(content);
@@ -277,6 +299,7 @@ const createStrategyControls = () => {
 // ===============================
 const sessionRenderer = dom('.session-renderer');
 let inputAreaElement = null;
+let editorInstance = null;
 
 const renderSessionItem = (item) => {
   if (renderingStrategy.value() === RenderingStrategy.RAW) {
@@ -290,24 +313,13 @@ const renderSession = (messages) => {
   sessionRenderer.innerHTML = '';
   
   sessionRenderer.appendChild(createStrategyControls());
-  
-  sessionRenderer.appendChild(dom([
-    'p', 
-    'Context size: ' + estimateContextSize(messages) + ' tokens'
-  ]));
-  
+  sessionRenderer.appendChild(dom([ 'p', 'Context size: ' + estimateContextSize(messages) + ' tokens' ]));
   sessionRenderer.appendChild(inputAreaElement);
 
-  if (Array.isArray(messages)) {
-    messages.forEach(message => {
-      sessionRenderer.appendChild(renderSessionItem(message));
-    });
-  } else {
-    sessionRenderer.appendChild(renderSessionItem(messages));
-  }
+  if (Array.isArray(messages)) messages.forEach(message =>  sessionRenderer.appendChild(renderSessionItem(message)));
+	else sessionRenderer.appendChild(renderSessionItem(messages));
   
   sessionRenderer.appendChild(inputAreaElement);
-  
   sessionMessages = messages;
 };
 
@@ -328,20 +340,29 @@ const createSessionRenderer = (state, readFile, writeFile) => {
     }
   });
 
-  inputAreaElement = dom(['textarea.prompt-box', {
-    onkeydown: async (event) => {
-      if (event.key === 'Enter' && !event.shiftKey) {
-        event.preventDefault();
-        const prompt = inputAreaElement.value.trim();
-        if (!prompt || isAgentRunning.value()) return;
-        
-        inputAreaElement.value = '';
-        isAgentRunning.next(true);
+  inputAreaElement = dom(['div.prompt-box']);
 
-        await startAgentLoop(prompt, sessionMessages, handleAgentEvent);
-      }
-    }
-  }]);
+
+  editorInstance = new EditorView({
+    parent: inputAreaElement,
+    state: EditorState.create({
+      doc: '',
+      extensions: [ vim(), basicSetup ],
+    }),
+  });
+
+  // updateHeight();
+
+  Vim.defineEx("write", "w", async () => {
+    const prompt = editorInstance.state.doc.toString().trim();
+    if (!prompt || isAgentRunning.value()) return;
+    
+    editorInstance.dispatch({
+      changes: { from: 0, to: editorInstance.state.doc.length, insert: '' }
+    });
+    isAgentRunning.next(true);
+    await startAgentLoop(prompt, sessionMessages, handleAgentEvent);
+  });
 
   renderingStrategy.subscribe(value => renderSession(sessionMessages));
 
@@ -351,6 +372,7 @@ const createSessionRenderer = (state, readFile, writeFile) => {
       const content = await readSessionContent(path, readFile);
       const parsed = parseSessionContent(content);
       sessionMessages = parsed;
+			console.log(parsed)
       renderSession(parsed);
     } catch (e) {
       console.error("Error loading session:", e);

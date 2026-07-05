@@ -6,6 +6,10 @@ import { fs } from '../fs.js';
 import { modalPopUp } from './modal.js';
 import { systemPrompt } from '../agent/systemPrompt.js';
 
+// import { MD } from './lib/md.js';
+// import { startAgentLoop } from '../agent/agent.js'
+// import { EventTypes } from '../agent/events.js'
+
 // ===============================
 // CONSTANTS & CONFIGURATION
 // ===============================
