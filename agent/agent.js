@@ -1,5 +1,5 @@
 
-async function callZAPI(messages, onPart) {
+async function callZAPI(messages, model, onPart) {
   const res = await fetch('https://api.z.ai/api/paas/v4/chat/completions', {
     method: 'POST',
     headers: {
@@ -7,7 +7,7 @@ async function callZAPI(messages, onPart) {
       'Authorization': `Bearer ${auth}`,
     },
     body: JSON.stringify({
-      model: 'GLM-4.7',
+      model,
       messages,
       stream: true,
       tools: tools.map(createTool),
@@ -89,7 +89,7 @@ function createToolCallAssembler() {
   };
 }
 
-async function opencodeAPI(messages, onPart) {
+async function opencodeAPI(messages, model, onPart) {
   const res = await fetch('https://opencode.ai/zen/go/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -97,11 +97,8 @@ async function opencodeAPI(messages, onPart) {
       'Authorization': `Bearer ${opencode}`,
     },
     body: JSON.stringify({
-      model: 'kimi-k2.7-code',
-      // model: 'mimo-v2.5',
-			// model:'qwen3.7-plus',
+      model,
       messages,
-      // stream: true,
       stream: true,
 			tool_stream:false,
       tools: tools.map(createTool),
@@ -163,18 +160,17 @@ const toolExecutor = async (toolCall) => {
  * @param {Function} pipe - Callback function to send events to UI
  * @param {Function} toolExecutor - Async function that executes a tool call and returns result
  */
-export async function runAgentTurn(messages, pipe) {
+export async function runAgentTurn(messages, pipe, model) {
   let respondedContent = ''
   let reasoningContent = ''
   let toolCalls = []
   const toolCallAssembler = createToolCallAssembler()
 
   try {
-    pipe(createEvent(EventTypes.RESPONSE_START, { model: 'GLM-4.7' }))
+    pipe(createEvent(EventTypes.RESPONSE_START, { model }))
 
     // Stream response from API
-    // await callZAPI(messages, (delta) => {
-    await opencodeAPI(messages, (delta) => {
+    await opencodeAPI(messages, model, (delta) => {
       // Content streaming
       console.log(delta)
 
@@ -235,7 +231,7 @@ export async function runAgentTurn(messages, pipe) {
         }
       }
 
-      await runAgentTurn(messages, pipe, toolExecutor)
+      await runAgentTurn(messages, pipe, model)
       return
 		}
 
@@ -252,28 +248,9 @@ export async function runAgentTurn(messages, pipe) {
   }
 }
 
-/**
- * Start a new agent loop with a user prompt
- * @param {string} prompt - User's input message
- * @param {Array} messages - Message history array (will be modified)
- * @param {Function} pipe - Callback function to send events to UI
- * @param {Function} toolExecutor - Async function that executes tool calls
- */
-export async function startAgentLoop(prompt, messages, pipe, toolExecutor) {
-  // Add user message to history
-  messages.push({
-    role: 'user',
-    content: prompt
-  })
-
+export async function startAgentLoop(messages, pipe, model) {
 	console.log('messages', messages)
 
-  // Notify UI of user message
-  pipe(createEvent(EventTypes.USER_MESSAGE, {
-    content: prompt
-  }))
-
-
   // Run the agent turn
-  await runAgentTurn(messages, pipe, toolExecutor)
+  await runAgentTurn(messages, pipe, model)
 }
