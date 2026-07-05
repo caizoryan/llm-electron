@@ -2,7 +2,8 @@ import { dom } from './lib/dom.js';
 import { memo, reactive } from './lib/chowk.js';
 import { MD } from './lib/md.js';
 import { startAgentLoop } from '../agent/agent.js'
-import { EventTypes } from '../agent/events.js'
+import { createEvent, EventTypes } from '../agent/events.js'
+import { models } from '../models.js'
 // import { EditorView, EditorState, basicSetup, vim, Vim } from './lib/codemirror/bundled.js';
 
 import * as cm from "./lib/codemirror/codemirror.js"
@@ -38,6 +39,7 @@ const MessageRole = {
 let sessionMessages = [];
 let currentSessionPath = null;
 const isAgentRunning = reactive(false);
+const currentModel = reactive('kimi-k2.7-code');
 const renderingStrategy = reactive(RenderingStrategy.MD);
 const toolCallElements = new Map();
 
@@ -293,11 +295,27 @@ const createStrategyControls = () => {
   ]);
 };
 
+const createModelDropdown = () => {
+  return dom(['select.model-select',
+    { 
+			onchange: (e) => currentModel.next(e.target.value)
+		},
+		memo(() => models.filter(e => e.api != 'anthropic').map(m => {
+			let opts = { value: m.id,  }
+			m.id === currentModel.value() ? opts.selected = true : null
+			let el = ['option', opts, m.name]
+			return el
+		}
+		),[currentModel]) 
+  ]);
+};
+
 // ===============================
 // SESSION RENDERER CREATION
 // ===============================
 const sessionRenderer = dom('.session-renderer');
 let inputAreaElement = null;
+let promptBox = null;
 let editorInstance = null;
 
 const renderSessionItem = (item) => {
@@ -313,12 +331,13 @@ const renderSession = (messages) => {
   
   sessionRenderer.appendChild(createStrategyControls());
   sessionRenderer.appendChild(dom([ 'p', 'Context size: ' + estimateContextSize(messages) + ' tokens' ]));
-  sessionRenderer.appendChild(inputAreaElement);
+
 
   if (Array.isArray(messages)) messages.forEach(message =>  sessionRenderer.appendChild(renderSessionItem(message)));
 	else sessionRenderer.appendChild(renderSessionItem(messages));
   
-  sessionRenderer.appendChild(inputAreaElement);
+	// TODO: This shouldn't be happening, make it so the prompt editor is not connected to session?
+  sessionRenderer.appendChild(promptBox);
   sessionMessages = messages;
 };
 
@@ -339,7 +358,10 @@ const createSessionRenderer = (state, readFile, writeFile) => {
     }
   });
 
-  inputAreaElement = dom(['div.prompt-box']);
+  let inputAreaElement = dom( ['div.prompt-editor']);
+	promptBox = dom(['div.prompt-box', inputAreaElement, 
+		// ['p', currentModel],
+		createModelDropdown()]);
 
 
   editorInstance = new EditorView({
@@ -360,7 +382,15 @@ const createSessionRenderer = (state, readFile, writeFile) => {
       changes: { from: 0, to: editorInstance.state.doc.length, insert: '' }
     });
     isAgentRunning.next(true);
-    await startAgentLoop(prompt, sessionMessages, handleAgentEvent);
+
+		let promptMessage = {
+			role: 'user',
+			content: prompt
+		}
+
+		sessionMessages.push(promptMessage)
+		handleAgentEvent(createEvent(EventTypes.USER_MESSAGE, promptMessage))
+    await startAgentLoop(sessionMessages, handleAgentEvent, currentModel.value());
   });
 
   renderingStrategy.subscribe(value => renderSession(sessionMessages));
@@ -378,7 +408,7 @@ const createSessionRenderer = (state, readFile, writeFile) => {
     }
   });
 
-  sessionRenderer.appendChild(inputAreaElement);
+  sessionRenderer.appendChild(promptBox);
 
   return sessionRenderer;
 };
