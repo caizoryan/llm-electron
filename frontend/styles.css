@@ -367,13 +367,11 @@ button:active {
 	color: var(--bg);
 	padding: 1em;
 	max-width: 700px;
-	min-height: 120px;
-	max-height: 300px;
-	overflow-y: auto;
 }
 
-.prompt-box:focus {
-	outline: none;
+.prompt-editor {
+	max-height: 300px;
+	overflow-y: auto;
 }
 
 /* Modal Styles */
@@ -448,4 +446,43 @@ td {
 }
 table, th, td {
     border: 1px solid var(--col);
+}
+
+/* Select / Dropdown Styles */
+select {
+	padding: 0.15em;
+	background: var(--bg);
+	color: var(--col);
+
+	border: 1.5px solid var(--col);
+
+	cursor: pointer;
+
+	appearance: none;
+	-webkit-appearance: none;
+	-moz-appearance: none;
+}
+
+select:hover {
+	background: var(--col);
+	color: var(--bg);
+}
+
+select:focus {
+	outline: none;
+	background: var(--col);
+	color: var(--bg);
+}
+
+select option {
+	background: var(--bg);
+	color: var(--col);
+	font-family: monospace;
+}
+
+select option:hover,
+select option:focus,
+select option:checked {
+	background: var(--col);
+	color: var(--bg);
 }
