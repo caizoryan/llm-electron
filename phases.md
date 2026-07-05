@@ -1,5 +1,57 @@
 # Implementation Phases
 
+## Phase E — File Redesign (Critical Path)
+
+**Session File Redesign (#5)**
+- [ ] Research PI's session file design
+- [ ] Design new schema: `created_at`, `updated_at`, `forked_from`, `thinking_level`, etc.
+- [ ] Migrate existing sessions or support both formats
+- [ ] Update read/write functions
+
+> Blocks #4, #9, #10.
+
+
+## Phase D — Session Management
+
+**Session Management Enhancements (#6)**
+- [ ] Delete button on session items (with confirmation)
+- [ ] Delete session function in fs layer
+- [ ] Rename button on session items
+- [ ] Rename session function (reuse existing modal)
+- [ ] Refresh session list after operations
+
+
+## Phase F — Forking
+
+**Session Forking (#4)**
+- [ ] Fork button in session list
+- [ ] Naming modal with conflict resolution (`_1`, `_2`, etc.)
+- [ ] `copySessionFile()` in fs layer
+- [ ] Refresh session list, auto-load new session
+- [ ] "Forked from: {original}" indicator in header
+
+
+## Phase G — CWD
+
+**Root Directory for Tool Calls (#9)**
+- [ ] Research: where state lives, path resolution, OpenCode Go API support
+- [ ] Determine `cwd` threading path (`startAgentLoop` → `callFunction`)
+- [ ] UI placement for cwd display/control
+- [ ] Implement after findings
+
+
+
+## Phase H — Folder Organization
+
+**Folder-Based Sessions (#10)**
+- [ ] Research PI's session-manager design patterns
+- [ ] Update `listSessions` for hierarchical paths
+- [ ] `createFolder` / `deleteFolder` in fs layer
+- [ ] Tree UI: collapse/expand, new folder button, drag-and-drop
+- [ ] Update paths when folders renamed/moved
+
+
+
 ## Phase A — Polish & Wiring
 
 **Prompt Input (#2 — remaining)**
@@ -24,7 +76,7 @@
 - [ ] Accumulate across assistant/tool turns
 - [ ] Add cost estimation where pricing is available
 
----
+
 
 ## Phase B — CodeMirror in Messages
 
@@ -34,7 +86,7 @@
 - [ ] Styling for inline code editors
 - [ ] Keep collapsible behavior within foldable messages
 
----
+
 
 ## Phase C — Tool Selection
 
@@ -44,62 +96,7 @@
 - [ ] Pass `selectedTools` through `startAgentLoop` → API
 - [ ] Visual indicator of active tools in session header
 
----
 
-## Phase D — Session Management
-
-**Session Management Enhancements (#6)**
-- [ ] Delete button on session items (with confirmation)
-- [ ] Delete session function in fs layer
-- [ ] Rename button on session items
-- [ ] Rename session function (reuse existing modal)
-- [ ] Refresh session list after operations
-
----
-
-## Phase E — File Redesign (Critical Path)
-
-**Session File Redesign (#5)**
-- [ ] Research PI's session file design
-- [ ] Design new schema: `created_at`, `updated_at`, `forked_from`, `thinking_level`, etc.
-- [ ] Migrate existing sessions or support both formats
-- [ ] Update read/write functions
-
-> Blocks #4, #9, #10.
-
----
-
-## Phase F — Forking
-
-**Session Forking (#4)**
-- [ ] Fork button in session list
-- [ ] Naming modal with conflict resolution (`_1`, `_2`, etc.)
-- [ ] `copySessionFile()` in fs layer
-- [ ] Refresh session list, auto-load new session
-- [ ] "Forked from: {original}" indicator in header
-
----
-
-## Phase G — CWD
-
-**Root Directory for Tool Calls (#9)**
-- [ ] Research: where state lives, path resolution, OpenCode Go API support
-- [ ] Determine `cwd` threading path (`startAgentLoop` → `callFunction`)
-- [ ] UI placement for cwd display/control
-- [ ] Implement after findings
-
----
-
-## Phase H — Folder Organization
-
-**Folder-Based Sessions (#10)**
-- [ ] Research PI's session-manager design patterns
-- [ ] Update `listSessions` for hierarchical paths
-- [ ] `createFolder` / `deleteFolder` in fs layer
-- [ ] Tree UI: collapse/expand, new folder button, drag-and-drop
-- [ ] Update paths when folders renamed/moved
-
----
 
 ## Phase I — Permissions & Bash
 
@@ -116,14 +113,5 @@
 
 > Bash depends on #7.
 
----
 
-## Summary
 
-```
-A  ──▶  B  ──▶  C  ──▶  D  ──▶  E  ──▶  F  ──▶  G  ──▶  H  ──▶  I
-│
-▲ Polish & wiring first, then CodeMirror reuse,
-  then pipe new parameters, then session CRUD,
-  then the critical file redesign (E) unblocks everything else.
-```
