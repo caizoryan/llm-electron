@@ -4,7 +4,7 @@ import { MD } from './lib/md.js';
 import { startAgentLoop } from '../agent/agent.js'
 import { createEvent, EventTypes } from '../agent/events.js'
 import { models } from '../models.js'
-import { JSONL } from './jsonl.js'
+import { SessionManager } from '../agent/sessionManager.js'
 import { createUserMessage, } from '../agent/sessionFormat.js'
 
 import * as cm from "./lib/codemirror/codemirror.js"
@@ -30,9 +30,7 @@ const MessageRole = {
 // ===============================
 // STATE MANAGEMENT
 // ===============================
-let sessionHeader = null;
-let sessionMessages = [];
-let currentSessionPath = null;
+let sessionManager: SessionManager | null = null;
 const isAgentRunning = reactive(false);
 const currentModel = reactive('kimi-k2.7-code');
 const renderingStrategy = reactive(RenderingStrategy.MD);
@@ -41,14 +39,6 @@ const toolCallElements = new Map();
 let currentMessageContent  = undefined
 let currentMessageReasoning = undefined
 let currentMessageElement = null;
-
-// ===============================
-// UTILITY FUNCTIONS
-// ===============================
-const readSessionContent = async (path, readFile) => {
-  const result = await readFile(path);
-  return result;
-};
 
 // ===============================
 // EVENT HANDLERS
@@ -362,24 +352,21 @@ const renderSession = () => {
   
   sessionRenderer.appendChild(createStrategyControls());
 
-
-  if (Array.isArray(sessionMessages)) sessionMessages.forEach(message =>  sessionRenderer.appendChild(renderSessionItem(message)));
-	else sessionRenderer.appendChild(renderSessionItem(sessionMessages));
+  const messages = sessionManager ? sessionManager.getMessages() : [];
+  messages.forEach(message => sessionRenderer.appendChild(renderSessionItem(message)));
   
 	// TODO: This shouldn't be happening, make it so the prompt editor is not connected to session?
   sessionRenderer.appendChild(promptBox);
 };
 
-const createSessionRenderer = (state, readFile, writeFile) => {
+const createSessionRenderer = (state) => {
   document.addEventListener('keydown', async (event) => {
-    currentSessionPath = state.currentSession.value();
-    
     if ((event.metaKey || event.ctrlKey) && event.key === 's') {
       event.preventDefault();
-      if (currentSessionPath && writeFile) {
+      if (sessionManager) {
         try {
-          await writeFile(currentSessionPath, JSONL.stringify([sessionHeader, ...sessionMessages]));
-          console.log('Session saved to', currentSessionPath);
+          await sessionManager.write();
+          console.log('Session saved to', sessionManager.getPath());
         } catch (err) {
           console.error('Failed to save session:', err);
         }
@@ -406,14 +393,15 @@ const createSessionRenderer = (state, readFile, writeFile) => {
   Vim.defineEx("write", "w", async () => {
     const prompt = editorInstance.state.doc.toString().trim();
     if (!prompt || isAgentRunning.value()) return;
+    if (!sessionManager) return;
     
     editorInstance.dispatch({ changes: { from: 0, to: editorInstance.state.doc.length, insert: '' } });
     isAgentRunning.next(true);
 
     const userMessage = createUserMessage(prompt);
-    sessionMessages.push(userMessage);
+    sessionManager.appendMessage(userMessage);
     handleAgentEvent(createEvent(EventTypes.USER_MESSAGE, { content: userMessage.content }));
-    await startAgentLoop(sessionMessages, handleAgentEvent, currentModel.value());
+    await startAgentLoop(sessionManager, handleAgentEvent, currentModel.value());
   });
 
   renderingStrategy.subscribe(value => renderSession());
@@ -421,10 +409,8 @@ const createSessionRenderer = (state, readFile, writeFile) => {
   state.currentSession.subscribe(async (path) => {
     if (!path) return;
     try {
-      const content = await readSessionContent(path, readFile);
-      const rows = JSONL.parse(content);
-      [sessionHeader, ...sessionMessages] = rows;
-			console.log(sessionMessages)
+      sessionManager = await SessionManager.load(path);
+			console.log(sessionManager.getMessages())
       renderSession();
     } catch (e) {
       console.error("Error loading session:", e);

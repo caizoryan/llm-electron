@@ -4,8 +4,8 @@ import { createSessionRenderer } from './sessionRenderer.js';
 import { fs } from '../fs.js';
 import { modalPopUp } from './modal.js';
 import { systemPrompt } from '../agent/systemPrompt.js';
-import { JSONL } from './jsonl.js';
-import { createSessionHeader, createSystemMessage, generateId } from '../agent/sessionFormat.js';
+import { SessionManager } from '../agent/sessionManager.js';
+import { createSystemMessage } from '../agent/sessionFormat.js';
 
 // import { MD } from './lib/md.js';
 // import { startAgentLoop } from '../agent/agent.js'
@@ -28,14 +28,6 @@ const appState = {
 // ===============================
 // FILE OPERATIONS
 // ===============================
-const readSessionFile = async (filePath) => {
-  return await fs.readFile(filePath);
-};
-
-const writeSessionFile = async (filePath, content) => {
-  await fs.writeFile(filePath, content);
-};
-
 const listSessionFiles = async () => {
   return await fs.listFiles(SESSIONS_DIRECTORY);
 };
@@ -45,13 +37,11 @@ const listSessionFiles = async () => {
 // ===============================
 const createNewSession = async (sessionName) => {
   const sessionPath = SESSIONS_DIRECTORY + sessionName + '.jsonl';
-  const emptySession = [
-		createSessionHeader(generateId()),
-		createSystemMessage(DEFAULT_SYSTEM_PROMPT)
-	]
-  await writeSessionFile(sessionPath, JSONL.stringify(emptySession, null, 2));
+  const manager = await SessionManager.create(sessionPath, [
+    createSystemMessage(DEFAULT_SYSTEM_PROMPT),
+  ]);
   loadSessionList();
-  appState.currentSession.next(sessionPath);
+  appState.currentSession.next(manager.getPath());
 };
 
 const renderSessionList = (listElement, fileList) => {
@@ -99,7 +89,7 @@ const sessionBrowser = dom(['.session',
 // ===============================
 // INITIALIZATION
 // ===============================
-const sessionRenderer = createSessionRenderer(appState, readSessionFile, writeSessionFile);
+const sessionRenderer = createSessionRenderer(appState);
 
 document.body.appendChild(sessionBrowser);
 document.body.appendChild(sessionRenderer);
