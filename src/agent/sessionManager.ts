@@ -1,5 +1,5 @@
 import { fs } from '../fs.js';
-import { JSONL } from '../frontend/jsonl.js';
+import { JSONL } from '../jsonl.js';
 import { createSessionHeader, generateId } from './sessionFormat.js';
 import type { SessionHeader, Message } from '../sessionTypes.ts';
 

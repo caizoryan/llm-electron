@@ -11,7 +11,7 @@ import type {
   StopReason,
 } from "../sessionTypes.ts";
 
-const CWD = "/Users/aaryan/Downloads/projects/llm-electron";
+export const CWD = "/Users/aaryan/Downloads/projects/llm-electron";
 
 export const createTextContent = (text: string): TextContent => ({ type: "text", text });
 
