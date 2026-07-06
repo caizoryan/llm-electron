@@ -55,7 +55,10 @@ const estimateContextSize = (messages) =>
   messages
     .filter((m) => m.role === "assistant")
     .reduce((sum, m) => {
-      const text = m.content
+      if (m.usage && typeof m.usage.totalTokens === "number") {
+        return sum + m.usage.totalTokens;
+      }
+      const text = (m.content || [])
         .filter((c) => c.type === "text" || c.type === "thinking")
         .map((c) => (c.type === "text" ? c.text : c.thinking))
         .join("");
@@ -92,7 +95,7 @@ const endAssistantMessage = () => {
 
 const eventHandlers = {
   [EventTypes.USER_MESSAGE]: (event) => {
-    const messageItem = createSessionItemElement(MessageRole.USER, MD(event.content));
+    const messageItem = createSessionItemElement(MessageRole.USER, MD(getText(event)));
     sessionRenderer.appendChild(messageItem);
   },
   [EventTypes.RESPONSE_START]: () => isAgentRunning.next(true),
@@ -413,7 +416,7 @@ const createSessionRenderer = (state, readFile, writeFile) => {
 
     const userMessage = createUserMessage(prompt);
     sessionMessages.push(userMessage);
-    handleAgentEvent(createEvent(EventTypes.USER_MESSAGE, userMessage));
+    handleAgentEvent(createEvent(EventTypes.USER_MESSAGE, { content: userMessage.content }));
     await startAgentLoop(sessionMessages, handleAgentEvent, currentModel.value());
   });
 

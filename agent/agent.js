@@ -153,6 +153,23 @@ async function opencodeAPI(messages, model, onPart) {
 }
 
 // ---------------------------------------------------------------------------
+// Usage mapping
+// ---------------------------------------------------------------------------
+
+function mapApiUsage(apiUsage) {
+  if (!apiUsage) return undefined;
+
+  return {
+    input: apiUsage.prompt_tokens ?? 0,
+    output: apiUsage.completion_tokens ?? 0,
+    cacheRead: apiUsage.prompt_cache_hit_tokens ?? apiUsage.prompt_tokens_details?.cached_tokens ?? 0,
+    cacheWrite: 0,
+    reasoning: apiUsage.completion_tokens_details?.reasoning_tokens,
+    totalTokens: apiUsage.total_tokens ?? 0,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Tool executor — accepts a session-format ToolCall
 // ---------------------------------------------------------------------------
 
@@ -230,9 +247,13 @@ export async function runAgentTurn(sessionMessages, pipe, model) {
     if (textContent) content.push(createTextContent(textContent));
     if (thinkingContent) content.push(createThinkingContent(thinkingContent));
 
-    // Push assistant text/thinking message if non-empty
+    const mappedUsage = mapApiUsage(usage);
+		let appendedUsage = false
+
+    // Push assistant text/thinking message if non-empty, or if we have usage to record
     if (content.length > 0) {
-      sessionMessages.push(createAssistantMessage({ content, model, stopReason: finishReason }));
+			appendedUsage = true
+      sessionMessages.push(createAssistantMessage({ content, model, usage: mappedUsage, stopReason: finishReason }));
     }
 
     const toolCalls = toolCallAssembler.finalize()
@@ -249,9 +270,17 @@ export async function runAgentTurn(sessionMessages, pipe, model) {
           JSON.parse(apiToolCall.function.arguments),
         );
 
+				// TODO: shady af, fix later
+				let usageintool = appendedUsage 
+					? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 } 
+					: mappedUsage
+
+				if (!appendedUsage) appendedUsage = true
+
         sessionMessages.push(createAssistantMessage({
           content: [sessionToolCall],
           model,
+          usage: usageintool,
           stopReason: 'toolUse',
         }));
 
