@@ -68,56 +68,6 @@ function toOpenAIMessages(sessionMessages) {
 // API helpers (unchanged)
 // ---------------------------------------------------------------------------
 
-async function callZAPI(messages, model, onPart) {
-  const res = await fetch('https://api.z.ai/api/paas/v4/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${auth}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      stream: true,
-      tools: tools.map(createTool),
-    }),
-  })
-
-  if (!res.ok) {
-    const errorText = await res.text()
-    throw new Error(`API Error: ${res.status} - ${errorText}`)
-  }
-
-  const reader = res.body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    
-    buffer += decoder.decode(value, { stream: true })
-    const lines = buffer.split('\n')
-    buffer = lines.pop()
-
-    for (const line of lines) {
-      const trimmed = line.trim()
-      if (!trimmed.startsWith('data:')) continue
-      
-      const data = trimmed.slice(5).trim()
-      if (data === '[DONE]') return
-
-      try {
-        const json = JSON.parse(data)
-        const delta = json.choices[0].delta
-        if (delta) onPart(delta)
-      } catch (e) {
-        console.warn('Failed to parse SSE data:', data, e)
-      }
-    }
-  }
-}
-
 function createToolCallAssembler() {
   const calls = []; // sparse array, indexed by delta.tool_calls[].index
 
@@ -164,7 +114,6 @@ async function opencodeAPI(messages, model, onPart) {
       model,
       messages,
       stream: true,
-			tool_stream:false,
       tools: tools.map(createTool),
     }),
   })
@@ -243,6 +192,7 @@ export async function runAgentTurn(sessionMessages, pipe, model) {
   let textContent = '';
   let thinkingContent = '';
   let finishReason = null;
+  let usage = null;
   const toolCallAssembler = createToolCallAssembler();
 
   try {
@@ -252,9 +202,8 @@ export async function runAgentTurn(sessionMessages, pipe, model) {
 
     // Stream response from API
     await opencodeAPI(apiMessages, model, (json) => {
-      if (json.finish_reason) {
-        finishReason = json.finish_reason
-      }
+      if (json.finish_reason) { finishReason = json.finish_reason }
+      if (json.usage) { usage = json.usage; console.log(usage) }
 
       const delta = json.choices?.[0]?.delta
       if (!delta) return
@@ -314,6 +263,7 @@ export async function runAgentTurn(sessionMessages, pipe, model) {
             result,
             false,
           ));
+
           pipe(createEvent(EventTypes.TOOL_RESULT, {
             tool_call_id: sessionToolCall.id,
             toolName: sessionToolCall.name,

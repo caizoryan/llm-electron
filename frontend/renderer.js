@@ -5,6 +5,8 @@ import { createSessionRenderer } from './sessionRenderer.js';
 import { fs } from '../fs.js';
 import { modalPopUp } from './modal.js';
 import { systemPrompt } from '../agent/systemPrompt.js';
+import { JSONL } from './jsonl.js';
+import { createSessionHeader, createSystemMessage, generateId } from '../agent/sessionFormat.js';
 
 // import { MD } from './lib/md.js';
 // import { startAgentLoop } from '../agent/agent.js'
@@ -44,8 +46,11 @@ const listSessionFiles = async () => {
 // ===============================
 const createNewSession = async (sessionName) => {
   const sessionPath = SESSIONS_DIRECTORY + sessionName + '.jsonl';
-  const emptySession = [{ role: 'system', content: DEFAULT_SYSTEM_PROMPT }];
-  await writeSessionFile(sessionPath, JSON.stringify(emptySession, null, 2));
+  const emptySession = [
+		createSessionHeader(generateId()),
+		createSystemMessage(DEFAULT_SYSTEM_PROMPT)
+	]
+  await writeSessionFile(sessionPath, JSONL.stringify(emptySession, null, 2));
   loadSessionList();
   appState.currentSession.next(sessionPath);
 };

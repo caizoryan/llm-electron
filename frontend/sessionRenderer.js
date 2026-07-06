@@ -11,19 +11,10 @@ import {
   createUserMessage,
   generateId,
 } from '../agent/sessionFormat.js'
-// import { EditorView, EditorState, basicSetup, vim, Vim } from './lib/codemirror/bundled.js';
 
 import * as cm from "./lib/codemirror/codemirror.js"
 const { basicSetup,EditorView, Vim, vim} = cm
 const { EditorState } = cm.state
-//
-// const { indentWithTab } = cm.commands
-// const { keymap, showTooltip } = cm.view
-// const { toggleFold, foldAll,   HighlightStyle, syntaxHighlighting,  } = cm.language
-// const { javascript } = cm.lang_javascript
-// const { tags } = cm.lezer_higlight
-// const { lintGutter, linter, openLintPanel } = cm.lint
-// const { autocompletion, completeFromList } = cm.autocomplete
 
 // ===============================
 // CONSTANTS & CONFIGURATION
@@ -417,9 +408,7 @@ const createSessionRenderer = (state, readFile, writeFile) => {
     const prompt = editorInstance.state.doc.toString().trim();
     if (!prompt || isAgentRunning.value()) return;
     
-    editorInstance.dispatch({
-      changes: { from: 0, to: editorInstance.state.doc.length, insert: '' }
-    });
+    editorInstance.dispatch({ changes: { from: 0, to: editorInstance.state.doc.length, insert: '' } });
     isAgentRunning.next(true);
 
     const userMessage = createUserMessage(prompt);
@@ -436,14 +425,9 @@ const createSessionRenderer = (state, readFile, writeFile) => {
       const content = await readSessionContent(path, readFile);
       const rows = JSONL.parse(content);
       [sessionHeader, ...sessionMessages] = rows;
-      console.log(sessionHeader, sessionMessages)
       renderSession();
     } catch (e) {
       console.error("Error loading session:", e);
-      // Start a new session
-      sessionHeader = createSessionHeader(generateId());
-      sessionMessages = [createSystemMessage("You are a helpful coding assistant.")];
-      renderSession();
     }
   });
 

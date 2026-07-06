@@ -1,4 +1,4 @@
-const CWD = "/your/hardcoded/path";
+const CWD = "/Users/aaryan/Downloads/projects/llm-electron";
 
 export const createTextContent = (text) => ({ type: "text", text });
 export const createThinkingContent = (thinking) => ({ type: "thinking", thinking });
