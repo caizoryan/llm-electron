@@ -488,3 +488,10 @@ select option:checked {
 	background: var(--col);
 	color: var(--bg);
 }
+
+.usage-block {
+	border-top: .5px solid var(--col);
+	margin-top: 2em;
+	font-size: .65em;
+	font-family: monospace;
+}

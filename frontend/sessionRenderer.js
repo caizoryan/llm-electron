@@ -49,22 +49,6 @@ let currentMessageElement = null;
 // ===============================
 // UTILITY FUNCTIONS
 // ===============================
-const estimateTokenCount = (text) => Math.ceil(text.length / 4);
-
-const estimateContextSize = (messages) =>
-  messages
-    .filter((m) => m.role === "assistant")
-    .reduce((sum, m) => {
-      if (m.usage && typeof m.usage.totalTokens === "number") {
-        return sum + m.usage.totalTokens;
-      }
-      const text = (m.content || [])
-        .filter((c) => c.type === "text" || c.type === "thinking")
-        .map((c) => (c.type === "text" ? c.text : c.thinking))
-        .join("");
-      return sum + estimateTokenCount(text);
-    }, 0);
-
 const readSessionContent = async (path, readFile) => {
   const result = await readFile(path);
   return result;
@@ -138,16 +122,16 @@ const createNarrativizationBlock = (reasoningContent) => {
   if (!reasoningContent) return null;
 
 	const isEmpty = reasoningContent.isReactive 
-		? memo(() => reasoningContent.value() != '', [reasoningContent]) 
+		? memo(() => reasoningContent.value() == '', [reasoningContent]) 
 		: reasoningContent 
-			? reasoningContent != '' 
+			? (reasoningContent == '' /*&& reasoningContent != '\n'*/)
 			: false
 
-  const isOpen = reactive(false);
+  const isOpen = reactive(true);
   
   return dom(['div.narrativization-block',
     { 
-			// hide: isEmpty,
+			hide: isEmpty,
 			open: memo(() => isOpen.value() ? 'true' : 'false', [isOpen]),
 		},
     ['div.narrativization-header', { 
@@ -160,6 +144,20 @@ const createNarrativizationBlock = (reasoningContent) => {
       ['pre', reasoningContent]
     ]
   ]);
+};
+
+const createUsageBlock = (usage) => {
+  if (!usage) return null;
+
+  const parts = [];
+  if (typeof usage.input === 'number') parts.push(`input: ${usage.input}`);
+  if (typeof usage.output === 'number') parts.push(`output: ${usage.output}`);
+  if (typeof usage.cacheRead === 'number') parts.push(`cached: ${usage.cacheRead}`);
+  if (typeof usage.totalTokens === 'number') parts.push(`total: ${usage.totalTokens}`);
+
+  if (parts.length === 0) return null;
+
+  return dom(['div.usage-block', parts.join(' · ')]);
 };
 
 const createMinimizedToolCall = (toolCall) => {
@@ -282,7 +280,9 @@ const createMarkdownSessionItem = (item) => {
       contentEl = MD(text);
     }
 
-    return createSessionItemElement(item.role, contentEl, narrativizationEl);
+    const usageEl = item.usage ? createUsageBlock(item.usage) : null;
+
+    return createSessionItemElement(item.role, contentEl, narrativizationEl, usageEl);
   }
 
   if (item.role === MessageRole.TOOL) {
@@ -302,7 +302,7 @@ const createRawSessionItem = (item) => {
   }, JSON.stringify(item, null, 2)]);
 };
 
-const createSessionItemElement = (role, content, narrativization) => {
+const createSessionItemElement = (role, content, narrativization, usage) => {
   const isOpen = reactive(true);
   let element = ['div.session-item', { role, open:isOpen },
     ['div.fold-header', { 
@@ -317,6 +317,7 @@ const createSessionItemElement = (role, content, narrativization) => {
 
   narrativization ? element.push(narrativization) : null;
   Array.isArray(content) ? element.push(...content) : element.push(content);
+  usage ? element.push(usage) : null;
 	// element.push(['button', { onclick: _ => isOpen.next(value => !value) }, 'close'])
 
   return dom(element);
@@ -364,7 +365,6 @@ const renderSession = () => {
   sessionRenderer.innerHTML = '';
   
   sessionRenderer.appendChild(createStrategyControls());
-  sessionRenderer.appendChild(dom([ 'p', 'Context size: ' + estimateContextSize(sessionMessages) + ' tokens' ]));
 
 
   if (Array.isArray(sessionMessages)) sessionMessages.forEach(message =>  sessionRenderer.appendChild(renderSessionItem(message)));

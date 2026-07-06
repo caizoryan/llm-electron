@@ -9,14 +9,6 @@
 - [ ] Pass thinking level to zAPI request body
 - [ ] Connect frontend dropdown to agent calls
 
-> documentation for parameter: 
-reasoning_effort
-enum<string>
-default:max 
-Controls the model's reasoning effort level, takes effect when thinking is enabled. Default is max. Only supported by GLM-5.2. For compatibility with other protocols, passing none or minimal will cause the model to skip thinking; low and medium will be mapped to high; xhigh will be mapped to max.
-Available options: max, xhigh, high, medium, low, minimal, none
-Example: "max"
-
 > UI will manage thinking level state. When changed, frontend passes it to agent on next prompt. No events needed for UI updates. Session persistence not required.
 
 ## 2. CodeMirror Editor for Prompt Input
@@ -58,11 +50,11 @@ Example: "max"
 
 ## 5. Session File Redesign
 
-- [ ] Research PI's session file design
-- [ ] Design new session file structure with metadata section
-- [ ] Add fields: `created_at`, `updated_at`, `forked_from`, `thinking_level`, etc.
-- [ ] Migrate existing session files to new format (or support both)
-- [ ] Update file read/write functions to handle new structure
+- [x] Research PI's session file design
+- [x] Design new session file structure with metadata section
+- [x] Add fields: `created_at`, `updated_at`, `forked_from`, `thinking_level`, etc.
+- [x] Migrate existing session files to new format (or support both)
+- [x] Update file read/write functions to handle new structure
 
 > Complete redesign needed to support metadata like timestamps and fork tracking.
 
@@ -96,10 +88,9 @@ Example: "max"
 
 ## 9. Root Directory for Tool Calls (CWD) — Research Task
 
-- [ ] Research where session/project state should live (session file, separate project config, in-memory)
+- [x] Research where session/project state should live (session file, separate project config, in-memory)
 - [ ] Research how tool path resolution should be handled (`agent/callFunction.js`, `agent/tools.js`, or `fs.js`)
 - [ ] Determine how to pass `cwd` through `startAgentLoop` → `runAgentTurn` → `callFunction`
-- [ ] Decide if `cwd` should persist across reloads and where (session metadata vs project config)
 - [ ] Decide UI location for cwd display/control (`sessionRenderer.js` session header, prompt area, etc.)
 - [ ] Check if OpenCode Go API supports cwd-aware tool calls natively or if resolution happens locally
 - [ ] Document findings before implementation
@@ -147,9 +138,9 @@ Example: "max"
 
 ## 14. Token Usage Tracking
 
-- [ ] Research how to extract token usage from OpenCode Go API responses
-- [ ] Add token usage display in session UI (per message and total session)
-- [ ] Accumulate token counts across assistant/tool turns
+- [x] Research how to extract token usage from OpenCode Go API responses
+- [x] Add token usage display in session UI (per message and total session)
+- [x] Accumulate token counts across assistant/tool turns
 - [ ] Add cost estimation if model pricing is available
 - [ ] Display context window utilization (used vs max tokens)
 

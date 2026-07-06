@@ -1,4 +1,4 @@
-import { auth, opencode } from './auth.js'
+import { opencode } from './auth.js'
 import { createTool, tools } from './tools.js'
 import { EventTypes, createEvent } from './events.js'
 import { callFunction } from './callFunction.js'

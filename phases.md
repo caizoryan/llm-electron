@@ -3,10 +3,10 @@
 ## Phase E — File Redesign (Critical Path)
 
 **Session File Redesign (#5)**
-- [ ] Research PI's session file design
-- [ ] Design new schema: `created_at`, `updated_at`, `forked_from`, `thinking_level`, etc.
-- [ ] Migrate existing sessions or support both formats
-- [ ] Update read/write functions
+- [x] Research PI's session file design
+- [x] Design new schema: `created_at`, `updated_at`, `forked_from`, `thinking_level`, etc.
+- [x] Migrate existing sessions or support both formats
+- [x] Update read/write functions
 
 > Blocks #4, #9, #10.
 
