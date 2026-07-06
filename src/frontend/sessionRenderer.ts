@@ -5,11 +5,14 @@ import { startAgentLoop } from '../agent/agent.js'
 import { createEvent, EventTypes } from '../agent/events.js'
 import { models } from '../models.js'
 import { SessionManager } from '../agent/sessionManager.js'
-import { createUserMessage, } from '../agent/sessionFormat.js'
+import { createUserMessage, CWD } from '../agent/sessionFormat.js'
+import { fs } from '../fs.js';
 
 import * as cm from "./lib/codemirror/codemirror.js"
 import type { Usage } from '../sessionTypes.js';
-const { basicSetup,EditorView, Vim, vim} = cm
+const { basicSetup, EditorView, Vim, vim } = cm
+const{ autocompletion} = cm.autocomplete
+console.log("COMPLE",autocompletion)
 const { EditorState } = cm.state
 
 // ===============================
@@ -39,6 +42,43 @@ const toolCallElements = new Map();
 let currentMessageContent  = undefined
 let currentMessageReasoning = undefined
 let currentMessageElement = null;
+
+// ===============================
+// PATH AUTOCOMPLETE
+// ===============================
+const pathCompletions = async (context) => {
+  const match = context.matchBefore(/\.\/[^\s]*/);
+  if (!match) return null;
+
+  const matchedText = context.state.sliceDoc(match.from, context.pos);
+  const lastSlash = matchedText.lastIndexOf('/');
+  const dirPart = matchedText.slice(0, lastSlash + 1);
+
+  const absDir = CWD + dirPart.slice(1);
+
+  let listing: string;
+  try {
+    listing = await fs.listFiles(absDir);
+  } catch {
+    return null;
+  }
+
+  const options = listing.split('\n').filter(Boolean).map((name) => {
+    const isDir = name.endsWith('/');
+    const label = isDir ? name.slice(0, -1) : name;
+    return {
+      label,
+      apply: label + (isDir ? '/' : ''),
+      type: isDir ? 'folder' : 'file',
+    };
+  });
+
+  return {
+    from: match.from + lastSlash + 1,
+    options,
+    validFor: /^[^\s/]*$/,
+  };
+};
 
 // ===============================
 // EVENT HANDLERS
@@ -384,7 +424,7 @@ const createSessionRenderer = (state) => {
     parent: inputAreaElement,
     state: EditorState.create({
       doc: '',
-      extensions: [ vim(), basicSetup ],
+      extensions: [ vim(), basicSetup, autocompletion({override: [pathCompletions]}) ],
     }),
   });
 
