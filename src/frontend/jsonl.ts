@@ -1,4 +1,4 @@
-import { Message } from '../sessionTypes.ts'
+import type { Message } from '../sessionTypes.ts'
 
 function parse(jsonl:string) : any[] {
   return jsonl

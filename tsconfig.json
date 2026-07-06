@@ -1,13 +1,13 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-		"noEmitOnError": true,
-		"allowJs": true,
-		"moduleResolution": "NodeNext",
+    "allowJs": true,
     "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "rootDir": "src",
     "outDir": "dist",
-    "strict": true
+    "strict": true,
+    "verbatimModuleSyntax": true
   },
-  "include": ["./src"]
+  "include": ["src"]
 }

@@ -8,7 +8,7 @@ import { JSONL } from './jsonl.js'
 import { createUserMessage, } from '../agent/sessionFormat.js'
 
 import * as cm from "./lib/codemirror/codemirror.js"
-import { Usage } from '../sessionTypes.js';
+import type { Usage } from '../sessionTypes.js';
 const { basicSetup,EditorView, Vim, vim} = cm
 const { EditorState } = cm.state
 
