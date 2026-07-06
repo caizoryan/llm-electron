@@ -16,7 +16,7 @@ app.whenReady().then(() => {
       preload: path.join(__dirname, 'preload.js')
     }
   });
-  mainWindow.loadFile('./frontend/index.html');
+  mainWindow.loadFile('./dist/frontend/index.html');
 });
 
 Object.entries(functions).forEach(([name, fn]) => ipcMain.handle(name, fn))

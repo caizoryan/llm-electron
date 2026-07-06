@@ -1,4 +1,6 @@
-function parse(jsonl) {
+import { Message } from '../sessionTypes.ts'
+
+function parse(jsonl:string) : any[] {
   return jsonl
     .split("\n")
     .map((line) => line.trim())
@@ -6,7 +8,7 @@ function parse(jsonl) {
     .map((line) => JSON.parse(line));
 }
 
-function stringify(rows) {
+function stringify(rows: Message[]) : string {
   return rows.map((row) => JSON.stringify(row)).join("\n");
 }
 

@@ -5,14 +5,10 @@ import { startAgentLoop } from '../agent/agent.js'
 import { createEvent, EventTypes } from '../agent/events.js'
 import { models } from '../models.js'
 import { JSONL } from './jsonl.js'
-import {
-  createSessionHeader,
-  createSystemMessage,
-  createUserMessage,
-  generateId,
-} from '../agent/sessionFormat.js'
+import { createUserMessage, } from '../agent/sessionFormat.js'
 
 import * as cm from "./lib/codemirror/codemirror.js"
+import { Usage } from '../sessionTypes.js';
 const { basicSetup,EditorView, Vim, vim} = cm
 const { EditorState } = cm.state
 
@@ -42,7 +38,7 @@ const currentModel = reactive('kimi-k2.7-code');
 const renderingStrategy = reactive(RenderingStrategy.MD);
 const toolCallElements = new Map();
 
-let currentMessageContent = undefined
+let currentMessageContent  = undefined
 let currentMessageReasoning = undefined
 let currentMessageElement = null;
 
@@ -302,7 +298,7 @@ const createRawSessionItem = (item) => {
   }, JSON.stringify(item, null, 2)]);
 };
 
-const createSessionItemElement = (role, content, narrativization, usage) => {
+const createSessionItemElement = (role, content, narrativization?: any, usage?: Usage) => {
   const isOpen = reactive(true);
   let element = ['div.session-item', { role, open:isOpen },
     ['div.fold-header', { 
@@ -428,6 +424,7 @@ const createSessionRenderer = (state, readFile, writeFile) => {
       const content = await readSessionContent(path, readFile);
       const rows = JSONL.parse(content);
       [sessionHeader, ...sessionMessages] = rows;
+			console.log(sessionMessages)
       renderSession();
     } catch (e) {
       console.error("Error loading session:", e);

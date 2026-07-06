@@ -216,6 +216,7 @@ export async function runAgentTurn(sessionMessages, pipe, model) {
     pipe(createEvent(EventTypes.RESPONSE_START, { model }))
 
     const apiMessages = toOpenAIMessages(sessionMessages);
+		console.log(apiMessages)
 
     // Stream response from API
     await opencodeAPI(apiMessages, model, (json) => {

@@ -4,7 +4,10 @@
   "description": "A minimal Electron application",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "build": "npm run copy && tsc",
+    "watch": "node watch.js",
+		"copy": "copyfiles -u 1 src/**/*.html src/**/*.css dist/"
   },
   "repository": "https://github.com/electron/minimal-repro",
   "keywords": [
@@ -17,6 +20,7 @@
   "author": "GitHub",
   "license": "CC0-1.0",
   "devDependencies": {
-    "electron": "^41.0.0"
+    "electron": "^41.0.0",
+    "typescript": "^7.0.1-rc"
   }
 }
