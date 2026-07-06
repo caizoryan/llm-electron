@@ -174,11 +174,12 @@ function mapApiUsage(apiUsage) {
 
 /**
  * Run a single turn of the agent loop
- * @param {Array} sessionMessages - Message history in session format
+ * @param {SessionManager} sessionManager - Session manager owning the message history
  * @param {Function} pipe - Callback function to send events to UI
  * @param {string} model - Model id
  */
-export async function runAgentTurn(sessionMessages, pipe, model) {
+export async function runAgentTurn(sessionManager, pipe, model) {
+  const sessionMessages = sessionManager.getMessages();
   let textContent = '';
   let thinkingContent = '';
   let finishReason = null;
@@ -227,7 +228,7 @@ export async function runAgentTurn(sessionMessages, pipe, model) {
     // Push assistant text/thinking message if non-empty, or if we have usage to record
     if (content.length > 0) {
 			appendedUsage = true
-      sessionMessages.push(createAssistantMessage({ content, model, stopReason: finishReason, usage: mappedUsage,  }));
+      sessionManager.appendMessage(createAssistantMessage({ content, model, stopReason: finishReason, usage: mappedUsage,  }));
     }
 
     const toolCalls = toolCallAssembler.finalize()
@@ -251,7 +252,7 @@ export async function runAgentTurn(sessionMessages, pipe, model) {
 
 				if (!appendedUsage) appendedUsage = true
 
-        sessionMessages.push(createAssistantMessage({
+        sessionManager.appendMessage(createAssistantMessage({
           content: [sessionToolCall],
           model,
           usage: usageintool,
@@ -260,7 +261,7 @@ export async function runAgentTurn(sessionMessages, pipe, model) {
 
         try {
           const result = await toolExecutor(sessionToolCall);
-          sessionMessages.push(createToolResultMessage(
+          sessionManager.appendMessage(createToolResultMessage(
             sessionToolCall.id,
             sessionToolCall.name,
             result,
@@ -274,7 +275,7 @@ export async function runAgentTurn(sessionMessages, pipe, model) {
             content: result,
           }));
         } catch (error) {
-          sessionMessages.push(createToolResultMessage(
+          sessionManager.appendMessage(createToolResultMessage(
             sessionToolCall.id,
             sessionToolCall.name,
             error.message,
@@ -290,7 +291,7 @@ export async function runAgentTurn(sessionMessages, pipe, model) {
         }
       }
 
-      await runAgentTurn(sessionMessages, pipe, model)
+      await runAgentTurn(sessionManager, pipe, model)
       return
 		}
 
@@ -305,7 +306,7 @@ export async function runAgentTurn(sessionMessages, pipe, model) {
   }
 }
 
-export async function startAgentLoop(sessionMessages, pipe, model) {
-  console.log('sessionMessages', sessionMessages)
-  await runAgentTurn(sessionMessages, pipe, model)
+export async function startAgentLoop(sessionManager, pipe, model) {
+  console.log('sessionMessages', sessionManager.getMessages())
+  await runAgentTurn(sessionManager, pipe, model)
 }
