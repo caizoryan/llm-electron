@@ -131,8 +131,7 @@ async function opencodeAPI(messages, model, onPart) {
 
       try {
         const json = JSON.parse(data)
-        const delta = json.choices[0]?.delta
-        if (delta) onPart(delta)
+        if (json) onPart(json)
       } catch (e) {
         console.warn('Failed to parse SSE data:', data, e)
       }
@@ -163,16 +162,24 @@ const toolExecutor = async (toolCall) => {
 export async function runAgentTurn(messages, pipe, model) {
   let respondedContent = ''
   let reasoningContent = ''
-  let toolCalls = []
+  let usage = null
+  let finishReason = null
   const toolCallAssembler = createToolCallAssembler()
 
   try {
     pipe(createEvent(EventTypes.RESPONSE_START, { model }))
 
     // Stream response from API
-    await opencodeAPI(messages, model, (delta) => {
-      // Content streaming
-      console.log(delta)
+    await opencodeAPI(messages, model, (json) => {
+      if (json.finish_reason) {
+        finishReason = json.finish_reason
+        if (json.usage) {
+          usage = json.usage
+        }
+      }
+
+      const delta = json.choices?.[0]?.delta
+      if (!delta) return
 
       // Handle reasoning content (thinking)
       if (delta.reasoning_content) {
@@ -186,13 +193,8 @@ export async function runAgentTurn(messages, pipe, model) {
         pipe(createEvent(EventTypes.TEXT_DELTA, { delta: delta.content }))
       }
 
-      // Tool calls - assume they come complete
-      // if (delta.tool_calls) {
-      //   toolCalls.push(...delta.tool_calls)
-      // }
-			if (delta.tool_calls) {
+      if (delta.tool_calls) {
         toolCallAssembler.add(delta.tool_calls)
-				// TODO: pipe in future 
       }
     })
 
@@ -236,10 +238,9 @@ export async function runAgentTurn(messages, pipe, model) {
 		}
 
     pipe(createEvent(EventTypes.RESPONSE_END, {
-			// TODO: Add tokens and shit here
-			//
-      // message: { role: 'assistant', content: respondedContent, reasoning_content: reasoningContent },
-      // finish_reason: hasToolCalls ? 'tool_calls' : 'stop'
+      usage,
+      finishReason,
+      message: { role: 'assistant', content: respondedContent, reasoning_content: reasoningContent, },
     }))
 
   } catch (error) {

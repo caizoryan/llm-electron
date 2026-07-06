@@ -1,5 +1,10 @@
 // Common filesystem module for Electron renderer process
 export const fs = {
+	readFirstNLines: async (path, num) => {
+	  const result = await window.electronAPI.readFirstNLines([path, num]);
+	  if (result.success) return result.lines;
+	  throw new Error(result.error);
+	},
   readFile: async (path) => {
 		console.log("reading", path)
     const result = await window.electronAPI.readFile([path]);
@@ -30,6 +35,7 @@ export const fs = {
     const content = await fs.readFile(path);
     const newContent = content.replace(search, replace);
     await fs.writeFile(path, newContent);
+		
 		// TODO: Actually check if succesfully matched and replaced
     return 'Successfully replaced';
   }

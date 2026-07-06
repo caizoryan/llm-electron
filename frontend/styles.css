@@ -117,6 +117,8 @@ h4,h5,h6 {
 	border-right: 2px solid;
 	padding: 1em;
 	padding-right: 3em;
+	overflow-y: scroll;
+	height: 100vh;
 }
 
 /* Session List */
