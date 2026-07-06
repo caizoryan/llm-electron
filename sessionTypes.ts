@@ -55,13 +55,6 @@ export interface Usage {
 	cacheWrite: number;
 	reasoning?: number;
 	totalTokens: number;
-	cost: {
-		input: number;
-		output: number;
-		cacheRead: number;
-		cacheWrite: number;
-		total: number;
-	};
 }
 
 export type StopReason = "stop" | "length" | "toolUse" | "error" | "aborted";
@@ -70,7 +63,15 @@ export type StopReason = "stop" | "length" | "toolUse" | "error" | "aborted";
 // Messages
 // ----------------------------------------------------------------------------
 
-export type Message = UserMessage | AssistantMessage | ToolResultMessage;
+export interface SystemMessage {
+	type: "message";
+	role: "system";
+	content: TextContent[];
+	/** Unix timestamp in milliseconds. */
+	timestamp: number;
+}
+
+export type Message = UserMessage | AssistantMessage | ToolResultMessage | SystemMessage;
 
 export interface UserMessage {
 	type: "message";
