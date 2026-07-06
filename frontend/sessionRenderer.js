@@ -4,6 +4,13 @@ import { MD } from './lib/md.js';
 import { startAgentLoop } from '../agent/agent.js'
 import { createEvent, EventTypes } from '../agent/events.js'
 import { models } from '../models.js'
+import { JSONL } from './jsonl.js'
+import {
+  createSessionHeader,
+  createSystemMessage,
+  createUserMessage,
+  generateId,
+} from '../agent/sessionFormat.js'
 // import { EditorView, EditorState, basicSetup, vim, Vim } from './lib/codemirror/bundled.js';
 
 import * as cm from "./lib/codemirror/codemirror.js"
@@ -36,6 +43,7 @@ const MessageRole = {
 // ===============================
 // STATE MANAGEMENT
 // ===============================
+let sessionHeader = null;
 let sessionMessages = [];
 let currentSessionPath = null;
 const isAgentRunning = reactive(false);
@@ -52,25 +60,20 @@ let currentMessageElement = null;
 // ===============================
 const estimateTokenCount = (text) => Math.ceil(text.length / 4);
 
-const estimateContextSize = (parsedSession) => {
-  if (!Array.isArray(parsedSession)) return estimateTokenCount(String(parsedSession));
-  
-  return parsedSession.reduce((total, item) => {
-    return total + (item.content ? estimateTokenCount(item.content) : 0);
-  }, 0);
-};
+const estimateContextSize = (messages) =>
+  messages
+    .filter((m) => m.role === "assistant")
+    .reduce((sum, m) => {
+      const text = m.content
+        .filter((c) => c.type === "text" || c.type === "thinking")
+        .map((c) => (c.type === "text" ? c.text : c.thinking))
+        .join("");
+      return sum + estimateTokenCount(text);
+    }, 0);
 
 const readSessionContent = async (path, readFile) => {
   const result = await readFile(path);
   return result;
-};
-
-const parseSessionContent = (content) => {
-  try {
-    return JSON.parse(content);
-  } catch (e) {
-    throw new Error(`Error parsing JSON: ${e.message}`);
-  }
 };
 
 // ===============================
@@ -231,35 +234,72 @@ const createToolCallResult = (item) => {
   return dom(['span']);
 };
 
+// ---------------------------------------------------------------------------
+// Helpers for reading session-format content
+// ---------------------------------------------------------------------------
+
+const getText = (message) =>
+  (message.content || [])
+    .filter((c) => c.type === "text")
+    .map((c) => c.text)
+    .join("");
+
+const getThinking = (message) =>
+  (message.content || [])
+    .filter((c) => c.type === "thinking")
+    .map((c) => c.thinking)
+    .join("");
+
+const getToolCalls = (message) =>
+  (message.content || [])
+    .filter((c) => c.type === "toolCall");
+
+// ---------------------------------------------------------------------------
+// Rendering helpers for session-format messages
+// ---------------------------------------------------------------------------
+
 const createMarkdownSessionItem = (item) => {
-  if (item.role == MessageRole.SYSTEM) return dom(['div.system', '']);
+  if (item.role === MessageRole.SYSTEM) return dom(['div.system', '']);
 
-  if (item.role == MessageRole.ASSISTANT 
-    && (!item.content || item.content == '')
-    && item.tool_calls) 
-  {
-    return createToolCallItem(item);
+  if (item.role === MessageRole.ASSISTANT) {
+    const toolCalls = getToolCalls(item);
+    if (toolCalls.length > 0) {
+      // Convert session-format tool calls to the shape createToolCallItem expects
+      return createToolCallItem({
+        role: item.role,
+        tool_calls: toolCalls.map((tc) => ({
+          id: tc.id,
+          function: { name: tc.name, arguments: tc.arguments },
+        })),
+      });
+    }
+
+    const text = getText(item);
+    const thinking = getThinking(item);
+
+    let contentEl;
+    let narrativizationEl;
+
+    if (thinking) {
+      narrativizationEl = createNarrativizationBlock(thinking);
+    }
+
+    if (text) {
+      contentEl = MD(text);
+    }
+
+    return createSessionItemElement(item.role, contentEl, narrativizationEl);
   }
 
-  if (item.role == MessageRole.TOOL) {
-    return createToolCallResult(item);
+  if (item.role === MessageRole.TOOL) {
+    return createToolCallResult({
+      tool_call_id: item.toolCallId,
+      content: getText(item),
+    });
   }
 
-  let contentEl;
-  let narrativizationEl;
-  
-  if (item.reasoning_content 
-		&& item.reasoning_content != '' 
-		&& item.reasoning_content != '\n'
-		&& item.role === MessageRole.ASSISTANT) {
-    narrativizationEl = createNarrativizationBlock(item.reasoning_content);
-  }
-
-  if (item.content) {
-    contentEl = MD(item.content);
-  }
-
-  return createSessionItemElement(item.role, contentEl, narrativizationEl);
+  // User
+  return createSessionItemElement(item.role, MD(getText(item)));
 };
 
 const createRawSessionItem = (item) => {
@@ -326,19 +366,18 @@ const renderSessionItem = (item) => {
   }
 };
 
-const renderSession = (messages) => {
+const renderSession = () => {
   sessionRenderer.innerHTML = '';
   
   sessionRenderer.appendChild(createStrategyControls());
-  sessionRenderer.appendChild(dom([ 'p', 'Context size: ' + estimateContextSize(messages) + ' tokens' ]));
+  sessionRenderer.appendChild(dom([ 'p', 'Context size: ' + estimateContextSize(sessionMessages) + ' tokens' ]));
 
 
-  if (Array.isArray(messages)) messages.forEach(message =>  sessionRenderer.appendChild(renderSessionItem(message)));
-	else sessionRenderer.appendChild(renderSessionItem(messages));
+  if (Array.isArray(sessionMessages)) sessionMessages.forEach(message =>  sessionRenderer.appendChild(renderSessionItem(message)));
+	else sessionRenderer.appendChild(renderSessionItem(sessionMessages));
   
 	// TODO: This shouldn't be happening, make it so the prompt editor is not connected to session?
   sessionRenderer.appendChild(promptBox);
-  sessionMessages = messages;
 };
 
 const createSessionRenderer = (state, readFile, writeFile) => {
@@ -349,7 +388,7 @@ const createSessionRenderer = (state, readFile, writeFile) => {
       event.preventDefault();
       if (currentSessionPath && writeFile) {
         try {
-          await writeFile(currentSessionPath, JSON.stringify(sessionMessages, null, 2));
+          await writeFile(currentSessionPath, JSONL.stringify([sessionHeader, ...sessionMessages]));
           console.log('Session saved to', currentSessionPath);
         } catch (err) {
           console.error('Failed to save session:', err);
@@ -383,28 +422,28 @@ const createSessionRenderer = (state, readFile, writeFile) => {
     });
     isAgentRunning.next(true);
 
-		let promptMessage = {
-			role: 'user',
-			content: prompt
-		}
-
-		sessionMessages.push(promptMessage)
-		handleAgentEvent(createEvent(EventTypes.USER_MESSAGE, promptMessage))
+    const userMessage = createUserMessage(prompt);
+    sessionMessages.push(userMessage);
+    handleAgentEvent(createEvent(EventTypes.USER_MESSAGE, userMessage));
     await startAgentLoop(sessionMessages, handleAgentEvent, currentModel.value());
   });
 
-  renderingStrategy.subscribe(value => renderSession(sessionMessages));
+  renderingStrategy.subscribe(value => renderSession());
 
   state.currentSession.subscribe(async (path) => {
     if (!path) return;
     try {
       const content = await readSessionContent(path, readFile);
-      const parsed = parseSessionContent(content);
-      sessionMessages = parsed;
-			console.log(parsed)
-      renderSession(parsed);
+      const rows = JSONL.parse(content);
+      [sessionHeader, ...sessionMessages] = rows;
+      console.log(sessionHeader, sessionMessages)
+      renderSession();
     } catch (e) {
       console.error("Error loading session:", e);
+      // Start a new session
+      sessionHeader = createSessionHeader(generateId());
+      sessionMessages = [createSystemMessage("You are a helpful coding assistant.")];
+      renderSession();
     }
   });
 

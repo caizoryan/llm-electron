@@ -1,3 +1,72 @@
+import { auth, opencode } from './auth.js'
+import { createTool, tools } from './tools.js'
+import { EventTypes, createEvent } from './events.js'
+import { callFunction } from './callFunction.js'
+import {
+  createTextContent,
+  createThinkingContent,
+  createToolCall as createSessionToolCall,
+  createAssistantMessage,
+  createToolResultMessage,
+} from './sessionFormat.js'
+
+// ---------------------------------------------------------------------------
+// Session-format → OpenAI API format conversion
+// ---------------------------------------------------------------------------
+
+function toOpenAIMessages(sessionMessages) {
+  return sessionMessages.map((m) => {
+    if (m.role === "system" || m.role === "user") {
+      return {
+        role: m.role,
+        content: m.content
+          .filter((c) => c.type === "text")
+          .map((c) => c.text)
+          .join(""),
+      };
+    }
+
+    if (m.role === "assistant") {
+      const text = m.content
+        .filter((c) => c.type === "text")
+        .map((c) => c.text)
+        .join("");
+      const reasoning = m.content
+        .filter((c) => c.type === "thinking")
+        .map((c) => c.thinking)
+        .join("");
+      const toolCalls = m.content
+        .filter((c) => c.type === "toolCall")
+        .map((c) => ({
+          id: c.id,
+          type: "function",
+          function: { name: c.name, arguments: c.arguments },
+        }));
+
+      const msg = { role: "assistant", content: text };
+      if (reasoning) msg.reasoning_content = reasoning;
+      if (toolCalls.length > 0) msg.tool_calls = toolCalls;
+      return msg;
+    }
+
+    if (m.role === "tool") {
+      return {
+        role: "tool",
+        tool_call_id: m.toolCallId,
+        content: m.content
+          .filter((c) => c.type === "text")
+          .map((c) => c.text)
+          .join(""),
+      };
+    }
+
+    throw new Error(`Unknown message role: ${m.role}`);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// API helpers (unchanged)
+// ---------------------------------------------------------------------------
 
 async function callZAPI(messages, model, onPart) {
   const res = await fetch('https://api.z.ai/api/paas/v4/chat/completions', {
@@ -48,11 +117,6 @@ async function callZAPI(messages, model, onPart) {
     }
   }
 }
-
-import { auth, opencode } from './auth.js'
-import { createTool, tools } from './tools.js'
-import { EventTypes, createEvent } from './events.js'
-import { callFunction } from './callFunction.js'
 
 function createToolCallAssembler() {
   const calls = []; // sparse array, indexed by delta.tool_calls[].index
@@ -139,9 +203,21 @@ async function opencodeAPI(messages, model, onPart) {
   }
 }
 
-const toolExecutor = async (toolCall) => {
+// ---------------------------------------------------------------------------
+// Tool executor — accepts a session-format ToolCall
+// ---------------------------------------------------------------------------
+
+const toolExecutor = async (sessionToolCall) => {
+  const args = JSON.parse(sessionToolCall.arguments);
+  // Adapt to the shape callFunction expects
+  const apiToolCall = {
+    function: {
+      name: sessionToolCall.name,
+      arguments: sessionToolCall.arguments,
+    },
+  };
   try {
-    const result = await callFunction(toolCall);
+    const result = await callFunction(apiToolCall);
     
     if (result.success) {
       return result.content;
@@ -153,29 +229,31 @@ const toolExecutor = async (toolCall) => {
   }
 };
 
+// ---------------------------------------------------------------------------
+// Agent turn
+// ---------------------------------------------------------------------------
+
 /**
  * Run a single turn of the agent loop
- * @param {Array} messages - Message history array
+ * @param {Array} sessionMessages - Message history in session format
  * @param {Function} pipe - Callback function to send events to UI
- * @param {Function} toolExecutor - Async function that executes a tool call and returns result
+ * @param {string} model - Model id
  */
-export async function runAgentTurn(messages, pipe, model) {
-  let respondedContent = ''
-  let reasoningContent = ''
-  let usage = null
-  let finishReason = null
-  const toolCallAssembler = createToolCallAssembler()
+export async function runAgentTurn(sessionMessages, pipe, model) {
+  let textContent = '';
+  let thinkingContent = '';
+  let finishReason = null;
+  const toolCallAssembler = createToolCallAssembler();
 
   try {
     pipe(createEvent(EventTypes.RESPONSE_START, { model }))
 
+    const apiMessages = toOpenAIMessages(sessionMessages);
+
     // Stream response from API
-    await opencodeAPI(messages, model, (json) => {
+    await opencodeAPI(apiMessages, model, (json) => {
       if (json.finish_reason) {
         finishReason = json.finish_reason
-        if (json.usage) {
-          usage = json.usage
-        }
       }
 
       const delta = json.choices?.[0]?.delta
@@ -183,13 +261,13 @@ export async function runAgentTurn(messages, pipe, model) {
 
       // Handle reasoning content (thinking)
       if (delta.reasoning_content) {
-        reasoningContent += delta.reasoning_content
+        thinkingContent += delta.reasoning_content
         pipe(createEvent(EventTypes.REASONING_DELTA, { delta: delta.reasoning_content }))
       }
 
       // Handle regular content
       if (delta.content) {
-        respondedContent += delta.content
+        textContent += delta.content
         pipe(createEvent(EventTypes.TEXT_DELTA, { delta: delta.content }))
       }
 
@@ -198,49 +276,74 @@ export async function runAgentTurn(messages, pipe, model) {
       }
     })
 
-    // Add assistant message to history
-    if (respondedContent || reasoningContent) {
-      // Add assistant message with tool calls to message history
-      messages.push({
-        role: 'assistant',
-        content: respondedContent,
-        reasoning_content: reasoningContent,
-      })
+    // Build content array for the assistant message
+    const content = [];
+    if (textContent) content.push(createTextContent(textContent));
+    if (thinkingContent) content.push(createThinkingContent(thinkingContent));
+
+    // Push assistant text/thinking message if non-empty
+    if (content.length > 0) {
+      sessionMessages.push(createAssistantMessage({ content, model, stopReason: finishReason }));
     }
 
-		const toolCalls = toolCallAssembler.finalize()
+    const toolCalls = toolCallAssembler.finalize()
 
     if (toolCalls.length > 0) {
-      toolCalls.forEach(tool_call => {
-        pipe(createEvent(EventTypes.TOOL_CALL, { tool_call }))
+      toolCalls.forEach(toolCall => {
+        pipe(createEvent(EventTypes.TOOL_CALL, { tool_call: toolCall }))
       })
 
-      for (const toolCall of toolCalls) {
-        messages.push({
-          role: 'assistant',
-          content: '',
-          tool_calls: [toolCall]
-        })
+      for (const apiToolCall of toolCalls) {
+        const sessionToolCall = createSessionToolCall(
+          apiToolCall.id,
+          apiToolCall.function.name,
+          JSON.parse(apiToolCall.function.arguments),
+        );
+
+        sessionMessages.push(createAssistantMessage({
+          content: [sessionToolCall],
+          model,
+          stopReason: 'toolUse',
+        }));
 
         try {
-          const result = await toolExecutor(toolCall)
-          messages.push({ role: 'tool', tool_call_id: toolCall.id, content: result })
-          pipe(createEvent(EventTypes.TOOL_RESULT, { tool_call_id: toolCall.id, role: 'tool', content: result }))
+          const result = await toolExecutor(sessionToolCall);
+          sessionMessages.push(createToolResultMessage(
+            sessionToolCall.id,
+            sessionToolCall.name,
+            result,
+            false,
+          ));
+          pipe(createEvent(EventTypes.TOOL_RESULT, {
+            tool_call_id: sessionToolCall.id,
+            toolName: sessionToolCall.name,
+            role: 'tool',
+            content: result,
+          }));
         } catch (error) {
-          const errorResult = { success: false, error: error.message }
-          messages.push({ role: 'tool', tool_call_id: toolCall.id, content: JSON.stringify(errorResult) })
-          pipe(createEvent(EventTypes.TOOL_RESULT, { tool_call_id: toolCall.id, role: 'tool', content: errorResult }))
+          sessionMessages.push(createToolResultMessage(
+            sessionToolCall.id,
+            sessionToolCall.name,
+            error.message,
+            true,
+          ));
+          pipe(createEvent(EventTypes.TOOL_RESULT, {
+            tool_call_id: sessionToolCall.id,
+            toolName: sessionToolCall.name,
+            role: 'tool',
+            content: error.message,
+            isError: true,
+          }));
         }
       }
 
-      await runAgentTurn(messages, pipe, model)
+      await runAgentTurn(sessionMessages, pipe, model)
       return
 		}
 
     pipe(createEvent(EventTypes.RESPONSE_END, {
-      usage,
       finishReason,
-      message: { role: 'assistant', content: respondedContent, reasoning_content: reasoningContent, },
+      message: { role: 'assistant', content: textContent, reasoning_content: thinkingContent },
     }))
 
   } catch (error) {
@@ -249,9 +352,7 @@ export async function runAgentTurn(messages, pipe, model) {
   }
 }
 
-export async function startAgentLoop(messages, pipe, model) {
-	console.log('messages', messages)
-
-  // Run the agent turn
-  await runAgentTurn(messages, pipe, model)
+export async function startAgentLoop(sessionMessages, pipe, model) {
+  console.log('sessionMessages', sessionMessages)
+  await runAgentTurn(sessionMessages, pipe, model)
 }
