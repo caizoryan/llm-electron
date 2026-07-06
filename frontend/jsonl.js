@@ -6,4 +6,8 @@ function parse(jsonl) {
     .map((line) => JSON.parse(line));
 }
 
-export const JSONL = { parse }
+function stringify(rows) {
+  return rows.map((row) => JSON.stringify(row)).join("\n");
+}
+
+export const JSONL = { parse, stringify };
