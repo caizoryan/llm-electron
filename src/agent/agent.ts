@@ -1,20 +1,20 @@
 import { opencode } from './auth.js'
 import { createTool, tools } from './tools.js'
 import { EventTypes, createEvent } from './events.js'
-import { callFunction } from './callFunction.js'
+import { toolExecutor } from './callFunction.js'
 import {
   createTextContent,
   createThinkingContent,
-  createToolCall as createSessionToolCall,
+  createToolCall,
   createAssistantMessage,
   createToolResultMessage,
 } from './sessionFormat.js'
+import type { Message } from '../sessionTypes.js'
 
 // ---------------------------------------------------------------------------
 // Session-format → OpenAI API format conversion
 // ---------------------------------------------------------------------------
-
-function toOpenAIMessages(sessionMessages) {
+function toOpenAIMessages(sessionMessages: Message[]) {
   return sessionMessages.map((m) => {
     if (m.role === "system" || m.role === "user") {
       return {
@@ -59,8 +59,6 @@ function toOpenAIMessages(sessionMessages) {
           .join(""),
       };
     }
-
-    throw new Error(`Unknown message role: ${m.role}`);
   });
 }
 
@@ -103,7 +101,7 @@ function createToolCallAssembler() {
   };
 }
 
-async function opencodeAPI(messages, model, onPart) {
+async function opencodeAPI(messages, model: string, onPart: (data: any) => void) {
   const res = await fetch('https://opencode.ai/zen/go/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -169,31 +167,6 @@ function mapApiUsage(apiUsage) {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Tool executor — accepts a session-format ToolCall
-// ---------------------------------------------------------------------------
-
-const toolExecutor = async (sessionToolCall) => {
-  const args = JSON.parse(sessionToolCall.arguments);
-  // Adapt to the shape callFunction expects
-  const apiToolCall = {
-    function: {
-      name: sessionToolCall.name,
-      arguments: sessionToolCall.arguments,
-    },
-  };
-  try {
-    const result = await callFunction(apiToolCall);
-    
-    if (result.success) {
-      return result.content;
-    } else {
-      throw new Error(result.error);
-    }
-  } catch (error) {
-    throw error;
-  }
-};
 
 // ---------------------------------------------------------------------------
 // Agent turn
@@ -254,7 +227,7 @@ export async function runAgentTurn(sessionMessages, pipe, model) {
     // Push assistant text/thinking message if non-empty, or if we have usage to record
     if (content.length > 0) {
 			appendedUsage = true
-      sessionMessages.push(createAssistantMessage({ content, model, usage: mappedUsage, stopReason: finishReason }));
+      sessionMessages.push(createAssistantMessage({ content, model, stopReason: finishReason, usage: mappedUsage,  }));
     }
 
     const toolCalls = toolCallAssembler.finalize()
@@ -265,7 +238,7 @@ export async function runAgentTurn(sessionMessages, pipe, model) {
       })
 
       for (const apiToolCall of toolCalls) {
-        const sessionToolCall = createSessionToolCall(
+        const sessionToolCall = createToolCall(
           apiToolCall.id,
           apiToolCall.function.name,
           JSON.parse(apiToolCall.function.arguments),
