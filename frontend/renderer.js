@@ -43,7 +43,7 @@ const listSessionFiles = async () => {
 // SESSION MANAGEMENT
 // ===============================
 const createNewSession = async (sessionName) => {
-  const sessionPath = SESSIONS_DIRECTORY + sessionName + '.json';
+  const sessionPath = SESSIONS_DIRECTORY + sessionName + '.jsonl';
   const emptySession = [{ role: 'system', content: DEFAULT_SYSTEM_PROMPT }];
   await writeSessionFile(sessionPath, JSON.stringify(emptySession, null, 2));
   loadSessionList();
