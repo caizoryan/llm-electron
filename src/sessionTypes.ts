@@ -48,6 +48,8 @@ export interface ToolCall {
 	arguments: string;
 }
 
+export type ContentPart = TextContent | ThinkingContent 
+
 export interface Usage {
 	input: number;
 	output: number;

@@ -9,6 +9,7 @@ import type {
   ToolResultMessage,
   Usage,
   StopReason,
+	ContentPart
 } from "../sessionTypes.ts";
 
 export const CWD = "/Users/aaryan/Downloads/projects/llm-electron";
@@ -19,6 +20,23 @@ export const createThinkingContent = (thinking: string): ThinkingContent => ({
   type: "thinking",
   thinking,
 });
+
+
+export const mergeContent = (content: ContentPart[]) : ContentPart[] => {
+	let compiled = content.reduce((acc, e) => {
+		e.type == 'text' 
+		? acc.text += e.text 
+		: e.type == 'thinking' 
+			?  acc.thinking += e.thinking 
+			: null
+		return acc
+	}, {text:"", thinking:""})
+
+	return [
+		createThinkingContent(compiled.thinking),
+		createTextContent(compiled.text),
+	]
+}
 
 export const createToolCall = (id: string, name: string, args: any): ToolCall => ({
   type: "toolCall",

@@ -5,11 +5,12 @@ import { toolExecutor } from './callFunction.js'
 import {
   createTextContent,
   createThinkingContent,
-  createToolCall,
   createAssistantMessage,
   createToolResultMessage,
+	mergeContent,
 } from './sessionFormat.js'
-import type { Message } from '../sessionTypes.js'
+
+import type { ContentPart, Message, ToolCall } from '../sessionTypes.js'
 
 // ---------------------------------------------------------------------------
 // Session-format → OpenAI API format conversion
@@ -45,7 +46,10 @@ function toOpenAIMessages(sessionMessages: Message[]) {
 
       const msg = { role: "assistant", content: text };
       if (reasoning) msg.reasoning_content = reasoning;
-      if (toolCalls.length > 0) msg.tool_calls = toolCalls;
+      if (toolCalls.length > 0){
+				msg.content == '' ? msg.content = null : null
+				msg.tool_calls = toolCalls;
+			}
       return msg;
     }
 
@@ -67,53 +71,53 @@ function toOpenAIMessages(sessionMessages: Message[]) {
 // ---------------------------------------------------------------------------
 
 function createToolCallAssembler() {
-  const calls = []; // sparse array, indexed by delta.tool_calls[].index
+  const calls: ToolCall[] = []
 
   return {
-    /** Feed one delta.tool_calls array into the assembler */
     add(toolCallDeltas) {
       for (const tc of toolCallDeltas) {
-        const i = tc.index ?? 0;
+        const i = tc.index ?? 0
 
         if (!calls[i]) {
-          calls[i] = {
-            id: '',
-            type: 'function',
-            function: { name: '', arguments: '' },
-          };
+          calls[i] = { type: 'toolCall', id: '', name: '', arguments: '' }
         }
 
-        if (tc.id) calls[i].id = tc.id;
-        if (tc.type) calls[i].type = tc.type;
-        if (tc.function?.name) calls[i].function.name += tc.function.name;
-        if (tc.function?.arguments) calls[i].function.arguments += tc.function.arguments;
+        if (tc.id) calls[i].id = tc.id
+        if (tc.function?.name) calls[i].name += tc.function.name
+        if (tc.function?.arguments) calls[i].arguments += tc.function.arguments
       }
     },
 
-    /** Get the fully assembled tool calls once the stream ends */
     finalize() {
-      return calls.filter(Boolean); // drop holes from a sparse array
+      return calls.filter(Boolean)
     },
 
     hasCalls() {
-      return calls.length > 0;
+      return calls.length > 0
     },
-  };
+  }
 }
 
-async function opencodeAPI(messages, model: string, onPart: (data: any) => void) {
+async function opencodeAPI(messages, model: string, thinkingMode: string, onPart: (data: any) => void) {
+  const body: any = {
+    model,
+    messages,
+    stream: true,
+    tools: tools.map(createTool),
+  }
+
+	// body.reasoning = { effort: thinkingMode }
+	 body.reasoning_effort = thinkingMode 
+	// console.log(body.reasoning)
+	// console.log(body.reasoning_effort)
+
   const res = await fetch('https://opencode.ai/zen/go/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${opencode}`,
     },
-    body: JSON.stringify({
-      model,
-      messages,
-      stream: true,
-      tools: tools.map(createTool),
-    }),
+    body: JSON.stringify(body),
   })
 
   if (!res.ok) {
@@ -178,12 +182,11 @@ function mapApiUsage(apiUsage) {
  * @param {Function} pipe - Callback function to send events to UI
  * @param {string} model - Model id
  */
-export async function runAgentTurn(sessionManager, pipe, model) {
+export async function runAgentTurn(sessionManager, pipe, model, thinkingMode = 'low') {
   const sessionMessages = sessionManager.getMessages();
-  let textContent = '';
-  let thinkingContent = '';
   let finishReason = null;
   let usage = null;
+  const assistantContent: ContentPart[] = []
   const toolCallAssembler = createToolCallAssembler();
 
   try {
@@ -193,7 +196,7 @@ export async function runAgentTurn(sessionManager, pipe, model) {
 		console.log(apiMessages)
 
     // Stream response from API
-    await opencodeAPI(apiMessages, model, (json) => {
+    await opencodeAPI(apiMessages, model, thinkingMode, (json) => {
       if (json.finish_reason) { finishReason = json.finish_reason }
       if (json.usage) { usage = json.usage; console.log(usage) }
 
@@ -202,14 +205,16 @@ export async function runAgentTurn(sessionManager, pipe, model) {
 
       // Handle reasoning content (thinking)
       if (delta.reasoning_content) {
-        thinkingContent += delta.reasoning_content
-        pipe(createEvent(EventTypes.REASONING_DELTA, { delta: delta.reasoning_content }))
+        const part = createThinkingContent(delta.reasoning_content)
+        assistantContent.push(part)
+        pipe(createEvent(EventTypes.REASONING_DELTA, { part }))
       }
 
       // Handle regular content
       if (delta.content) {
-        textContent += delta.content
-        pipe(createEvent(EventTypes.TEXT_DELTA, { delta: delta.content }))
+        const part = createTextContent(delta.content)
+        assistantContent.push(part)
+        pipe(createEvent(EventTypes.TEXT_DELTA, { part }))
       }
 
       if (delta.tool_calls) {
@@ -217,34 +222,17 @@ export async function runAgentTurn(sessionManager, pipe, model) {
       }
     })
 
-    // Build content array for the assistant message
-    const content = [];
-    if (textContent) content.push(createTextContent(textContent));
-    if (thinkingContent) content.push(createThinkingContent(thinkingContent));
-
     const mappedUsage = mapApiUsage(usage);
 		let appendedUsage = false
-
-    // Push assistant text/thinking message if non-empty, or if we have usage to record
-    if (content.length > 0) {
-			appendedUsage = true
-      sessionManager.appendMessage(createAssistantMessage({ content, model, stopReason: finishReason, usage: mappedUsage,  }));
-    }
 
     const toolCalls = toolCallAssembler.finalize()
 
     if (toolCalls.length > 0) {
-      toolCalls.forEach(toolCall => {
-        pipe(createEvent(EventTypes.TOOL_CALL, { tool_call: toolCall }))
+      toolCalls.forEach((toolCall) => {
+        pipe(createEvent(EventTypes.TOOL_CALL, { part: toolCall }))
       })
 
-      for (const apiToolCall of toolCalls) {
-        const sessionToolCall = createToolCall(
-          apiToolCall.id,
-          apiToolCall.function.name,
-          JSON.parse(apiToolCall.function.arguments),
-        );
-
+      for (const sessionToolCall of toolCalls) {
 				// TODO: shady af, fix later
 				let usageintool = appendedUsage 
 					? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 } 
@@ -261,44 +249,39 @@ export async function runAgentTurn(sessionManager, pipe, model) {
 
         try {
           const result = await toolExecutor(sessionToolCall);
-          sessionManager.appendMessage(createToolResultMessage(
+          const toolResultMsg = createToolResultMessage(
             sessionToolCall.id,
             sessionToolCall.name,
             result,
             false,
-          ));
-
-          pipe(createEvent(EventTypes.TOOL_RESULT, {
-            tool_call_id: sessionToolCall.id,
-            toolName: sessionToolCall.name,
-            role: 'tool',
-            content: result,
-          }));
+          );
+          sessionManager.appendMessage(toolResultMsg)
+          pipe(createEvent(EventTypes.TOOL_RESULT, { message: toolResultMsg }));
         } catch (error) {
-          sessionManager.appendMessage(createToolResultMessage(
+          const toolResultMsg = createToolResultMessage(
             sessionToolCall.id,
             sessionToolCall.name,
             error.message,
             true,
-          ));
-          pipe(createEvent(EventTypes.TOOL_RESULT, {
-            tool_call_id: sessionToolCall.id,
-            toolName: sessionToolCall.name,
-            role: 'tool',
-            content: error.message,
-            isError: true,
-          }));
+          );
+          sessionManager.appendMessage(toolResultMsg)
+          pipe(createEvent(EventTypes.TOOL_RESULT, { message: toolResultMsg }));
         }
       }
 
-      await runAgentTurn(sessionManager, pipe, model)
+      await runAgentTurn(sessionManager, pipe, model, thinkingMode)
       return
 		}
 
-    pipe(createEvent(EventTypes.RESPONSE_END, {
-      finishReason,
-      message: { role: 'assistant', content: textContent, reasoning_content: thinkingContent },
-    }))
+    const assistantMsg = createAssistantMessage({
+      content: mergeContent(assistantContent),
+      model,
+      stopReason: finishReason,
+      usage: mappedUsage,
+    })
+
+    sessionManager.appendMessage(assistantMsg)
+    pipe(createEvent(EventTypes.RESPONSE_END, { message: assistantMsg }))
 
   } catch (error) {
     console.error('Agent error:', error)
@@ -306,7 +289,7 @@ export async function runAgentTurn(sessionManager, pipe, model) {
   }
 }
 
-export async function startAgentLoop(sessionManager, pipe, model) {
+export async function startAgentLoop(sessionManager, pipe, model, thinkingMode) {
   console.log('sessionMessages', sessionManager.getMessages())
-  await runAgentTurn(sessionManager, pipe, model)
+  await runAgentTurn(sessionManager, pipe, model, thinkingMode)
 }

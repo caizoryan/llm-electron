@@ -10,9 +10,9 @@ import { fs } from '../fs.js';
 
 import * as cm from "./lib/codemirror/codemirror.js"
 import type { Usage } from '../sessionTypes.js';
+
 const { basicSetup, EditorView, Vim, vim } = cm
 const{ autocompletion} = cm.autocomplete
-console.log("COMPLE",autocompletion)
 const { EditorState } = cm.state
 
 // ===============================
@@ -36,8 +36,11 @@ const MessageRole = {
 let sessionManager: SessionManager | null = null;
 const isAgentRunning = reactive(false);
 const currentModel = reactive('kimi-k2.7-code');
+const thinkingMode = reactive('low');
 const renderingStrategy = reactive(RenderingStrategy.MD);
 const toolCallElements = new Map();
+
+const THINKING_STATES = [ 'low', 'medium', 'high' ];
 
 let currentMessageContent  = undefined
 let currentMessageReasoning = undefined
@@ -54,7 +57,8 @@ const pathCompletions = async (context) => {
   const lastSlash = matchedText.lastIndexOf('/');
   const dirPart = matchedText.slice(0, lastSlash + 1);
 
-  const absDir = CWD + dirPart.slice(1);
+	let cwd = sessionManager?.getHeader().cwd
+  const absDir =  (cwd || CWD) + dirPart.slice(1);
 
   let listing: string;
   try {
@@ -105,38 +109,63 @@ const endAssistantMessage = () => {
 
 const eventHandlers = {
   [EventTypes.USER_MESSAGE]: (event) => {
-    const messageItem = createSessionItemElement(MessageRole.USER, MD(getText(event)));
+    const messageItem = createSessionItemElement(
+      MessageRole.USER,
+      MD(getText(event.message))
+    );
     sessionRenderer.appendChild(messageItem);
   },
+
   [EventTypes.RESPONSE_START]: () => isAgentRunning.next(true),
+
   [EventTypes.REASONING_DELTA]: (event) => {
     startAssistantMessage();
-    currentMessageReasoning?.next(value => value + event.delta);
+    currentMessageReasoning?.next(value => value + event.part.thinking);
   },
+
   [EventTypes.TEXT_DELTA]: (event) => {
     startAssistantMessage();
-    currentMessageContent?.next(value => value + event.delta);
+    currentMessageContent?.next(value => value + event.part.text);
   },
+
   [EventTypes.TOOL_CALL]: (event) => {
     endAssistantMessage();
-    const toolCallItem = createToolCallItem({ tool_calls: [event.tool_call] });
+    const toolCallItem = createToolCallItem({
+      role: MessageRole.ASSISTANT,
+      tool_calls: [event.part],
+    });
     sessionRenderer.appendChild(toolCallItem);
   },
+
   [EventTypes.TOOL_RESULT]: (event) => {
     endAssistantMessage();
-    const toolResultItem = createToolCallResult(event);
+    const toolResultItem = createToolCallResult(event.message);
     sessionRenderer.appendChild(toolResultItem);
   },
 
-  [EventTypes.RESPONSE_END]: () => {
+  [EventTypes.RESPONSE_END]: (event) => {
+    if (currentMessageElement && event.message.usage) {
+      currentMessageElement.appendChild(createUsageBlock(event.message.usage));
+    }
     isAgentRunning.next(false);
   },
+
   [EventTypes.ERROR]: () => isAgentRunning.next(false),
 };
 
+let oneventhooks = [
+	eventHandlers,
+	{[EventTypes.RESPONSE_END]: (event) => {
+		console.log("UPDATE USAGE", event, event.message.usage)
+	}}
+]
+
+
 const handleAgentEvent = (event) => {
-  const handler = eventHandlers[event.type];
-  handler?.(event);
+	oneventhooks.forEach(handler => {
+		const handle = handler[event.type];
+		handle?.(event);
+	})
 };
 
 isAgentRunning.subscribe(value => value ? null : endAssistantMessage());
@@ -187,8 +216,8 @@ const createUsageBlock = (usage) => {
 };
 
 const createMinimizedToolCall = (toolCall) => {
-  const functionName = toolCall.function.name;
-  const args = JSON.parse(toolCall.function.arguments);
+  const functionName = toolCall.name;
+  const args = JSON.parse(toolCall.arguments);
   // const tokenEstimate = estimateTokenCount(JSON.stringify(toolCall.function));
   
   let argDisplay;
@@ -220,8 +249,7 @@ const createToolCallItem = (item) => {
   const minimizedToolCalls = ['div.tool-calls', { onclick: () => isOpen.next(value => !value) }];
 
   item.tool_calls.forEach(toolCall => {
-    const func = toolCall.function;
-    const args = Object.entries(JSON.parse(func.arguments))
+    const args = Object.entries(JSON.parse(toolCall.arguments))
       .map(([key, value]) => 
         ['.tool-args', 
           ['p.key', key],
@@ -229,7 +257,7 @@ const createToolCallItem = (item) => {
         ]);
 
     toolCallElements[toolCall.id] = dom(['div.tool-call',
-      ['div.tool-name', func.name],
+      ['div.tool-name', toolCall.name],
       ...args
     ]);
 
@@ -246,8 +274,9 @@ const createToolCallItem = (item) => {
 };
 
 const createToolCallResult = (item) => {
-  const toolResult = dom(['div.tool-result', ['pre', item.content]]);
-  toolCallElements[item.tool_call_id]?.appendChild(toolResult);
+  const text = getText(item);
+  const toolResult = dom(['div.tool-result', ['pre', text]]);
+  toolCallElements[item.toolCallId]?.appendChild(toolResult);
 
   return dom(['span']);
 };
@@ -282,14 +311,7 @@ const createMarkdownSessionItem = (item) => {
   if (item.role === MessageRole.ASSISTANT) {
     const toolCalls = getToolCalls(item);
     if (toolCalls.length > 0) {
-      // Convert session-format tool calls to the shape createToolCallItem expects
-      return createToolCallItem({
-        role: item.role,
-        tool_calls: toolCalls.map((tc) => ({
-          id: tc.id,
-          function: { name: tc.name, arguments: tc.arguments },
-        })),
-      });
+      return createToolCallItem({ role: item.role, tool_calls: toolCalls });
     }
 
     const text = getText(item);
@@ -312,10 +334,7 @@ const createMarkdownSessionItem = (item) => {
   }
 
   if (item.role === MessageRole.TOOL) {
-    return createToolCallResult({
-      tool_call_id: item.toolCallId,
-      content: getText(item),
-    });
+    return createToolCallResult(item);
   }
 
   // User
@@ -371,6 +390,17 @@ const createModelDropdown = () => {
   ]);
 };
 
+const createThinkingToggle = () => {
+  return dom(['button.small',
+    { onclick: () => {
+      const current = thinkingMode.value();
+      const nextIndex = (THINKING_STATES.indexOf(current) + 1) % THINKING_STATES.length;
+      thinkingMode.next(THINKING_STATES[nextIndex]);
+    }},
+    memo(() => `Think: ${thinkingMode.value()}`, [thinkingMode])
+  ]);
+};
+
 // ===============================
 // SESSION RENDERER CREATION
 // ===============================
@@ -417,14 +447,21 @@ const createSessionRenderer = (state) => {
   let inputAreaElement = dom( ['div.prompt-editor']);
 	promptBox = dom(['div.prompt-box', inputAreaElement, 
 		// ['p', currentModel],
-		createModelDropdown()]);
+		createModelDropdown(),
+		createThinkingToggle()]);
 
+
+  const editorTheme = EditorView.theme({
+    '& .cm-gutters': { backgroundColor: 'transparent', border: 'none' },
+    '& .cm-gutter': { backgroundColor: 'transparent', color: 'white' },
+    '& .cm-activeLineGutter': { backgroundColor: 'transparent' },
+  });
 
   editorInstance = new EditorView({
     parent: inputAreaElement,
     state: EditorState.create({
-      doc: '',
-      extensions: [ vim(), basicSetup, autocompletion({override: [pathCompletions]}) ],
+      doc: '\n\n\n',
+      extensions: [ vim(), basicSetup, autocompletion({override: [pathCompletions]}), editorTheme ],
     }),
   });
 
@@ -440,8 +477,8 @@ const createSessionRenderer = (state) => {
 
     const userMessage = createUserMessage(prompt);
     sessionManager.appendMessage(userMessage);
-    handleAgentEvent(createEvent(EventTypes.USER_MESSAGE, { content: userMessage.content }));
-    await startAgentLoop(sessionManager, handleAgentEvent, currentModel.value());
+    handleAgentEvent(createEvent(EventTypes.USER_MESSAGE, { message: userMessage }));
+    await startAgentLoop(sessionManager, handleAgentEvent, currentModel.value(), thinkingMode.value());
   });
 
   renderingStrategy.subscribe(value => renderSession());
