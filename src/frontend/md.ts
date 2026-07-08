@@ -1,5 +1,9 @@
-import markdownIt from "./lib/markdown-it/markdown-it.jss";
-import markdownItMark from "./lib/markdown-it/markdown-it-mark.jss";
+import markdownIt from "./lib/markdown-it/markdown-it.js";
+import markdownItMark from "./lib/markdown-it/markdown-it-mark.js";
+
+import { Prism } from './lib/prism.js';
+
+console.log("HELLO FUCKING WORD")
 
 // ********************************
 // SECTION : MARKDOWN RENDERING
@@ -35,7 +39,7 @@ function eat(tree) {
 				let p = item.type === "softbreak"
 					? ["br"]
 					: item.type === "fence"
-						? ["pre", item.content]
+						? highlightedCodeBlock(item) // ["pre", item.content]
 						: item.type === "code_inline"
 							? [item.tag, item.content]
 							: item.content;
@@ -50,6 +54,28 @@ function eat(tree) {
 	}
 
 	return ret;
+}
+function highlightedCodeBlock(item) {
+	console.log(item)
+	const lang = item.info ? item.info.trim().split(/\s+/)[0] : '';
+	const code = item.content;
+
+	const pre = document.createElement('pre');
+	const codeEl = document.createElement('code');
+
+	if (lang) {
+		codeEl.classList.add(`language-${lang}`);
+		pre.classList.add(`language-${lang}`);
+	}
+
+	if (lang && Prism.languages[lang]) {
+		codeEl.innerHTML = Prism.highlight(code, Prism.languages[lang], lang);
+	} else {
+		codeEl.textContent = code;
+	}
+
+	pre.appendChild(codeEl);
+	return pre;
 }
 
 let safe_parse = (content) => {

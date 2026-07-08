@@ -11,6 +11,7 @@ import { fs } from '../fs.js';
 import * as cm from "./lib/codemirror/codemirror.js"
 import type { Usage } from '../sessionTypes.js';
 
+
 const { basicSetup, EditorView, Vim, vim } = cm
 const{ autocompletion} = cm.autocomplete
 const { EditorState } = cm.state
@@ -98,7 +99,7 @@ const startAssistantMessage = () => {
     memo(() => MD(currentMessageContent.value()), [currentMessageContent])
   );
 
-  sessionRenderer.appendChild(currentMessageElement);
+  sessionMessagesContainer.appendChild(currentMessageElement);
 };
 
 const endAssistantMessage = () => {
@@ -113,7 +114,7 @@ const eventHandlers = {
       MessageRole.USER,
       MD(getText(event.message))
     );
-    sessionRenderer.appendChild(messageItem);
+    sessionMessagesContainer.appendChild(messageItem);
   },
 
   [EventTypes.RESPONSE_START]: () => isAgentRunning.next(true),
@@ -134,13 +135,13 @@ const eventHandlers = {
       role: MessageRole.ASSISTANT,
       tool_calls: [event.part],
     });
-    sessionRenderer.appendChild(toolCallItem);
+    sessionMessagesContainer.appendChild(toolCallItem);
   },
 
   [EventTypes.TOOL_RESULT]: (event) => {
     endAssistantMessage();
     const toolResultItem = createToolCallResult(event.message);
-    sessionRenderer.appendChild(toolResultItem);
+    sessionMessagesContainer.appendChild(toolResultItem);
   },
 
   [EventTypes.RESPONSE_END]: (event) => {
@@ -350,9 +351,7 @@ const createRawSessionItem = (item) => {
 const createSessionItemElement = (role, content, narrativization?: any, usage?: Usage) => {
   const isOpen = reactive(true);
   let element = ['div.session-item', { role, open:isOpen },
-    ['div.fold-header', { 
-      onclick: () => isOpen.next(value => !value) 
-    }, ['span.toggle-icon', memo(() => isOpen.value() ? '▼' : '▶', [isOpen])]],
+    // ['div.fold-header', { onclick: () => isOpen.next(value => !value) }, ['span.toggle-icon', memo(() => isOpen.value() ? '▼' : '▶', [isOpen])]],
 	];
 
 	if (!content && !narrativization){
@@ -404,7 +403,8 @@ const createThinkingToggle = () => {
 // ===============================
 // SESSION RENDERER CREATION
 // ===============================
-const sessionRenderer = dom('.session-renderer');
+const sessionMessagesContainer = dom('.session-messages-container')
+const sessionRenderer = dom('.session-renderer', sessionMessagesContainer);
 let inputAreaElement = null;
 let promptBox = null;
 let editorInstance = null;
@@ -418,15 +418,16 @@ const renderSessionItem = (item) => {
 };
 
 const renderSession = () => {
+  sessionMessagesContainer.innerHTML = '';
   sessionRenderer.innerHTML = '';
-  
-  sessionRenderer.appendChild(createStrategyControls());
+  // sessionRenderer.appendChild(createStrategyControls());
+  sessionRenderer.appendChild(sessionMessagesContainer);
 
   const messages = sessionManager ? sessionManager.getMessages() : [];
-  messages.forEach(message => sessionRenderer.appendChild(renderSessionItem(message)));
+  messages.forEach(message => sessionMessagesContainer.appendChild(renderSessionItem(message)));
   
 	// TODO: This shouldn't be happening, make it so the prompt editor is not connected to session?
-  sessionRenderer.appendChild(promptBox);
+  sessionMessagesContainer.appendChild(promptBox);
 };
 
 const createSessionRenderer = (state) => {
@@ -494,7 +495,7 @@ const createSessionRenderer = (state) => {
     }
   });
 
-  sessionRenderer.appendChild(promptBox);
+  sessionMessagesContainer.appendChild(promptBox);
 
   return sessionRenderer;
 };

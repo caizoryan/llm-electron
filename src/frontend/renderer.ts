@@ -1,11 +1,12 @@
 import { dom } from './lib/dom.js';
-import { reactive } from './lib/chowk.js';
+import { memo,reactive } from './lib/chowk.js';
 import { createSessionRenderer } from './sessionRenderer.js';
 import { fs } from '../fs.js';
 import { modalPopUp } from './modal.js';
 import { systemPrompt } from '../agent/systemPrompt.js';
 import { SessionManager } from '../agent/sessionManager.js';
 import { createSystemMessage } from '../agent/sessionFormat.js';
+
 
 // import { MD } from './lib/md.js';
 // import { startAgentLoop } from '../agent/agent.js'
@@ -93,5 +94,48 @@ const sessionRenderer = createSessionRenderer(appState);
 
 document.body.appendChild(sessionBrowser);
 document.body.appendChild(sessionRenderer);
+
+const SIDEBAR_WIDTH = '30%';
+const sidebarVisible = reactive(true);
+
+// computed styles
+const sidebarStyle = memo(() => ({
+  position: 'fixed',
+  top: '0',
+  left: '0',
+  width: SIDEBAR_WIDTH,
+  height: '100vh',
+  display: sidebarVisible.value() ? 'block' : 'none',
+}), [sidebarVisible]);
+
+const rendererStyle = memo(() => {
+  const visible = sidebarVisible.value();
+  return {
+    position: 'fixed',
+    top: '0',
+    right: '0',
+    height: '100vh',
+    left: visible ? SIDEBAR_WIDTH : '0',
+    width: visible ? '70%' : '100%',
+  };
+}, [sidebarVisible]);
+
+const applyStyles = (element, styleMemo) => {
+  Object.assign(element.style, styleMemo.value());
+};
+
+sidebarStyle.subscribe(() => applyStyles(sessionBrowser, sidebarStyle));
+rendererStyle.subscribe(() => applyStyles(sessionRenderer, rendererStyle));
+
+// toggle hotkey
+document.addEventListener('keydown', (event) => {
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'e') {
+    event.preventDefault();
+    sidebarVisible.next(v => !v);
+  }
+});
+
+applyStyles(sessionBrowser, sidebarStyle);
+applyStyles(sessionRenderer, rendererStyle);
 
 loadSessionList();
