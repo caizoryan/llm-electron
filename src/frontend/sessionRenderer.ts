@@ -10,7 +10,7 @@ import { fs } from '../fs.js';
 
 import * as cm from "./lib/codemirror/codemirror.js"
 import type { Usage } from '../sessionTypes.js';
-import { state } from './renderer.js';
+import { DEFAULT_CWD, state } from './state.js';
 
 
 const { basicSetup, EditorView, Vim, vim } = cm
@@ -35,16 +35,7 @@ const MessageRole = {
 // ===============================
 // STATE MANAGEMENT
 // ===============================
-let sessionManager = state.sessionManager;
-const isAgentRunning = state.isAgentRunning;
-const isCwdModalOpen = state.isCwdModalOpen;
-const currentCwd = state.currentCwd;
-const currentModel = state.currentModel;
-const thinkingMode = state.thinkingMode;
-const renderingStrategy = state.renderingStrategy;
-
 const toolCallElements = new Map();
-
 const THINKING_STATES = [ 'low', 'medium', 'high' ];
 
 let currentMessageContent  = undefined
@@ -74,7 +65,7 @@ const pathCompletions = async (context) => {
   const lastSlash = matchedText.lastIndexOf('/');
   const dirPart = matchedText.slice(0, lastSlash + 1);
 
-	let cwd = sessionManager?.getHeader().cwd
+	let cwd = state.sessionManager?.getHeader().cwd
   const absDir =  (cwd) + dirPart.slice(1);
 
   let listing: string;
@@ -145,7 +136,7 @@ const eventHandlers = {
     sessionMessagesContainer.appendChild(messageItem);
   },
 
-  [EventTypes.RESPONSE_START]: () => isAgentRunning.next(true),
+  [EventTypes.RESPONSE_START]: () => state.isAgentRunning.next(true),
 
   [EventTypes.REASONING_DELTA]: (event) => {
     startAssistantMessage();
@@ -176,10 +167,10 @@ const eventHandlers = {
     if (currentMessageElement && event.message.usage) {
       currentMessageElement.appendChild(createUsageBlock(event.message.usage));
     }
-    isAgentRunning.next(false);
+    state.isAgentRunning.next(false);
   },
 
-  [EventTypes.ERROR]: () => isAgentRunning.next(false),
+  [EventTypes.ERROR]: () => state.isAgentRunning.next(false),
 };
 
 let oneventhooks = [
@@ -197,22 +188,22 @@ const handleAgentEvent = (event) => {
 	})
 };
 
-isAgentRunning.subscribe(value => value ? null : endAssistantMessage());
+state.isAgentRunning.subscribe(value => value ? null : endAssistantMessage());
 
-isCwdModalOpen.subscribe((open) => {
+state.isCwdModalOpen.subscribe((open) => {
   if (open) {
     cwdEditorInstance?.focus();
     cwdEditorInstance?.dispatch({
       changes: { 
 				from: 0, to: cwdEditorInstance.state.doc.length,
-				insert: sessionManager?.getHeader().cwd || DEFAULT_CWD },
+				insert: state.sessionManager?.getHeader().cwd || DEFAULT_CWD },
     });
   }
 });
 
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && isCwdModalOpen.value()) {
-    isCwdModalOpen.next(false);
+  if (event.key === 'Escape' && state.isCwdModalOpen.value()) {
+    state.isCwdModalOpen.next(false);
   }
 });
 
@@ -448,34 +439,34 @@ const createSessionItemElement = (role, content, narrativization?: any, usage?: 
 
 const createStrategyControls = () => {
   return dom(['.buttons', 
-    ['button', { onclick: () => renderingStrategy.next(RenderingStrategy.MD) }, 'MD'],
-    ['button', { onclick: () => renderingStrategy.next(RenderingStrategy.RAW) }, 'RAW'],
+    ['button', { onclick: () => state.renderingStrategy.next(RenderingStrategy.MD) }, 'MD'],
+    ['button', { onclick: () => state.renderingStrategy.next(RenderingStrategy.RAW) }, 'RAW'],
   ]);
 };
 
 const createModelDropdown = () => {
   return dom(['select.model-select',
     { 
-			onchange: (e) => currentModel.next(e.target.value)
+			onchange: (e) => state.currentModel.next(e.target.value)
 		},
 		memo(() => models.filter(e => e.api != 'anthropic').map(m => {
 			let opts = { value: m.id,  }
-			m.id === currentModel.value() ? opts.selected = true : null
+			m.id === state.currentModel.value() ? opts.selected = true : null
 			let el = ['option', opts, m.name]
 			return el
 		}
-		),[currentModel]) 
+		),[state.currentModel]) 
   ]);
 };
 
 const createThinkingToggle = () => {
   return dom(['button.small',
     { onclick: () => {
-      const current = thinkingMode.value();
+      const current = state.thinkingMode.value();
       const nextIndex = (THINKING_STATES.indexOf(current) + 1) % THINKING_STATES.length;
-      thinkingMode.next(THINKING_STATES[nextIndex]);
+      state.thinkingMode.next(THINKING_STATES[nextIndex]);
     }},
-    memo(() => `Think: ${thinkingMode.value()}`, [thinkingMode])
+    memo(() => `Think: ${state.thinkingMode.value()}`, [state.thinkingMode])
   ]);
 };
 
@@ -485,19 +476,19 @@ const createThinkingToggle = () => {
 const createCwdPicker = () => {
   return dom(['button.cwd-picker.small',
     {
-      onclick: () => isCwdModalOpen.next(true),
+      onclick: () => state.isCwdModalOpen.next(true),
       title: 'Change working directory',
     },
-    memo(() => currentCwd.value(), [state.currentSession, currentCwd]),
+    memo(() => state.currentCwd.value(), [state.currentSession, state.currentCwd]),
   ]);
 };
 
 const createCwdModal = (editorMount: HTMLElement) => {
   return dom(['div.modal-overlay',
     {
-      hide: memo(() => !isCwdModalOpen.value(), [isCwdModalOpen]),
+      hide: memo(() => !state.isCwdModalOpen.value(), [state.isCwdModalOpen]),
       onclick: (e: MouseEvent) => {
-        if (e.target === e.currentTarget) isCwdModalOpen.next(false);
+        if (e.target === e.currentTarget) state.isCwdModalOpen.next(false);
       },
     },
     ['div.modal',
@@ -518,7 +509,7 @@ let editorInstance = null;
 let cwdEditorInstance = null;
 
 const renderSessionItem = (item) => {
-  if (renderingStrategy.value() === RenderingStrategy.RAW) {
+  if (state.renderingStrategy.value() === RenderingStrategy.RAW) {
     return createRawSessionItem(item);
   } else {
     return createMarkdownSessionItem(item);
@@ -531,7 +522,7 @@ const renderSession = () => {
   // sessionRenderer.appendChild(createStrategyControls());
   sessionRenderer.appendChild(sessionMessagesContainer);
 
-  const messages = sessionManager ? sessionManager.getMessages() : [];
+  const messages = state.sessionManager ? state.sessionManager.getMessages() : [];
   messages.forEach(message => sessionMessagesContainer.appendChild(renderSessionItem(message)));
   
 	// TODO: This shouldn't be happening, make it so the prompt editor is not connected to session?
@@ -542,10 +533,10 @@ const createSessionRenderer = (state) => {
   document.addEventListener('keydown', async (event) => {
     if ((event.metaKey || event.ctrlKey) && event.key === 's') {
       event.preventDefault();
-      if (sessionManager) {
+      if (state.sessionManager) {
         try {
-          await sessionManager.write();
-          console.log('Session saved to', sessionManager.getPath());
+          await 5tate.sessionManager.write();
+          console.log('Session saved to', state.sessionManager.getPath());
         } catch (err) {
           console.error('Failed to save session:', err);
         }
@@ -596,28 +587,28 @@ const createSessionRenderer = (state) => {
   Vim.defineEx("write", "w", async () => {
 		setTimeout(async () => {
 			if (cwdEditorInstance.hasFocus) {
-				if (!sessionManager) return;
+				if (!state.sessionManager) return;
 				const newCwd = cwdEditorInstance.state.doc.toString().trim();
 				if (!newCwd) return;
-				sessionManager.getHeader().cwd = newCwd;
-				currentCwd.next(newCwd);
-				isCwdModalOpen.next(false);
+				state.sessionManager.getHeader().cwd = newCwd;
+				state.currentCwd.next(newCwd);
+				state.isCwdModalOpen.next(false);
 				console.log('CWD updated to:', newCwd);
 				return;
 			}
 
 			if (editorInstance.hasFocus) {
 				const prompt = editorInstance.state.doc.toString().trim();
-				if (!prompt || isAgentRunning.value()) return;
-				if (!sessionManager) return;
+				if (!prompt || state.isAgentRunning.value()) return;
+				if (!state.sessionManager) return;
 
 				editorInstance.dispatch({ changes: { from: 0, to: editorInstance.state.doc.length, insert: '' } });
-				isAgentRunning.next(true);
+				state.isAgentRunning.next(true);
 
 				const userMessage = createUserMessage(prompt);
-				sessionManager.appendMessage(userMessage);
+				state.sessionManager.appendMessage(userMessage);
 				handleAgentEvent(createEvent(EventTypes.USER_MESSAGE, { message: userMessage }));
-				await startAgentLoop(sessionManager, handleAgentEvent, currentModel.value(), thinkingMode.value());
+				await startAgentLoop(state.sessionManager, handleAgentEvent, state.currentModel.value(), state.thinkingMode.value());
 			}
 
 		}, 10)
@@ -626,10 +617,10 @@ const createSessionRenderer = (state) => {
   state.currentSession.subscribe(async (path) => {
     if (!path) return;
     try {
-      sessionManager = await SessionManager.load(path);
-      state.sessionManager = sessionManager;
-			console.log(sessionManager.getMessages())
-      currentCwd.next(sessionManager.getHeader().cwd || DEFAULT_CWD);
+      state.sessionManager = await SessionManager.load(path);
+      state.sessionManager = state.sessionManager;
+			console.log(state.sessionManager.getMessages())
+      state.currentCwd.next(state.sessionManager.getHeader().cwd || DEFAULT_CWD);
       renderSession();
     } catch (e) {
       console.error("Error loading session:", e);
