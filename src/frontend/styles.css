@@ -389,6 +389,10 @@ button:active {
 	overflow-y: auto;
 }
 
+.cwd-editor {
+	min-height: 200px;
+}
+
 /* Modal Styles */
 .modal-overlay {
   position: fixed;
