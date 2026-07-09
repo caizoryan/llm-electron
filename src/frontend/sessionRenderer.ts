@@ -10,6 +10,7 @@ import { fs } from '../fs.js';
 
 import * as cm from "./lib/codemirror/codemirror.js"
 import type { Usage } from '../sessionTypes.js';
+import { state } from './renderer.js';
 
 
 const { basicSetup, EditorView, Vim, vim } = cm
@@ -36,6 +37,9 @@ const MessageRole = {
 // ===============================
 let sessionManager: SessionManager | null = null;
 const isAgentRunning = reactive(false);
+const isCwdModalOpen = reactive(false)
+const DEFAULT_CWD = '/Users/aaryan/'
+const currentCwd = reactive('/Users/aaryan/')
 const currentModel = reactive('kimi-k2.7-code');
 const thinkingMode = reactive('low');
 const renderingStrategy = reactive(RenderingStrategy.MD);
@@ -50,6 +54,18 @@ let currentMessageElement = null;
 // ===============================
 // PATH AUTOCOMPLETE
 // ===============================
+const makeFileOptions = (listing: string) => {
+  return listing.split('\n').filter(Boolean).map((name) => {
+    const isDir = name.endsWith('/');
+    const label = isDir ? name.slice(0, -1) : name;
+    return {
+      label,
+      apply: label + (isDir ? '/' : ''),
+      type: isDir ? 'folder' : 'file',
+    };
+  });
+};
+
 const pathCompletions = async (context) => {
   const match = context.matchBefore(/\.\/[^\s]*/);
   if (!match) return null;
@@ -59,7 +75,7 @@ const pathCompletions = async (context) => {
   const dirPart = matchedText.slice(0, lastSlash + 1);
 
 	let cwd = sessionManager?.getHeader().cwd
-  const absDir =  (cwd || CWD) + dirPart.slice(1);
+  const absDir =  (cwd) + dirPart.slice(1);
 
   let listing: string;
   try {
@@ -68,19 +84,31 @@ const pathCompletions = async (context) => {
     return null;
   }
 
-  const options = listing.split('\n').filter(Boolean).map((name) => {
-    const isDir = name.endsWith('/');
-    const label = isDir ? name.slice(0, -1) : name;
-    return {
-      label,
-      apply: label + (isDir ? '/' : ''),
-      type: isDir ? 'folder' : 'file',
-    };
-  });
+  return {
+    from: match.from + lastSlash + 1,
+    options: makeFileOptions(listing),
+    validFor: /^[^\s/]*$/,
+  };
+};
+
+const cwdCompletions = async (context) => {
+  const match = context.matchBefore(/\/[^\s]*/);
+  if (!match) return null;
+
+  const matchedText = context.state.sliceDoc(match.from, context.pos);
+  const lastSlash = matchedText.lastIndexOf('/');
+  const dirPart = matchedText.slice(0, lastSlash + 1) || '/';
+
+  let listing: string;
+  try {
+    listing = await fs.listFiles(dirPart);
+  } catch {
+    return null;
+  }
 
   return {
     from: match.from + lastSlash + 1,
-    options,
+    options: makeFileOptions(listing),
     validFor: /^[^\s/]*$/,
   };
 };
@@ -170,6 +198,23 @@ const handleAgentEvent = (event) => {
 };
 
 isAgentRunning.subscribe(value => value ? null : endAssistantMessage());
+
+isCwdModalOpen.subscribe((open) => {
+  if (open) {
+    cwdEditorInstance?.focus();
+    cwdEditorInstance?.dispatch({
+      changes: { 
+				from: 0, to: cwdEditorInstance.state.doc.length,
+				insert: sessionManager?.getHeader().cwd || DEFAULT_CWD },
+    });
+  }
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && isCwdModalOpen.value()) {
+    isCwdModalOpen.next(false);
+  }
+});
 
 // ===============================
 // UI COMPONENT CREATORS
@@ -401,6 +446,34 @@ const createThinkingToggle = () => {
 };
 
 // ===============================
+// CWD PICKER
+// ===============================
+const createCwdPicker = () => {
+  return dom(['button.cwd-picker.small',
+    {
+      onclick: () => isCwdModalOpen.next(true),
+      title: 'Change working directory',
+    },
+    memo(() => currentCwd.value(), [state.currentSession, currentCwd]),
+  ]);
+};
+
+const createCwdModal = (editorMount: HTMLElement) => {
+  return dom(['div.modal-overlay',
+    {
+      hide: memo(() => !isCwdModalOpen.value(), [isCwdModalOpen]),
+      onclick: (e: MouseEvent) => {
+        if (e.target === e.currentTarget) isCwdModalOpen.next(false);
+      },
+    },
+    ['div.modal',
+      ['p', 'Set working directory (:w to save)'],
+      editorMount,
+    ]
+  ]);
+};
+
+// ===============================
 // SESSION RENDERER CREATION
 // ===============================
 const sessionMessagesContainer = dom('.session-messages-container')
@@ -408,6 +481,7 @@ const sessionRenderer = dom('.session-renderer', sessionMessagesContainer);
 let inputAreaElement = null;
 let promptBox = null;
 let editorInstance = null;
+let cwdEditorInstance = null;
 
 const renderSessionItem = (item) => {
   if (renderingStrategy.value() === RenderingStrategy.RAW) {
@@ -446,8 +520,10 @@ const createSessionRenderer = (state) => {
   });
 
   let inputAreaElement = dom( ['div.prompt-editor']);
+  const cwdEditorMount = dom(['div.cwd-editor']);
 	promptBox = dom(['div.prompt-box', inputAreaElement, 
 		// ['p', currentModel],
+		createCwdPicker(),
 		createModelDropdown(),
 		createThinkingToggle()]);
 
@@ -458,6 +534,11 @@ const createSessionRenderer = (state) => {
     '& .cm-activeLineGutter': { backgroundColor: 'transparent' },
   });
 
+	// -------------------------
+	// CLEAN THE FUCK UP THE
+	// CODEMIRROR BUSINESS
+	// WHY SO MESSY!
+	// -------------------------
   editorInstance = new EditorView({
     parent: inputAreaElement,
     state: EditorState.create({
@@ -466,29 +547,54 @@ const createSessionRenderer = (state) => {
     }),
   });
 
+  cwdEditorInstance = new EditorView({
+    parent: cwdEditorMount,
+    state: EditorState.create({
+      doc: DEFAULT_CWD,
+      extensions: [ vim(), basicSetup, autocompletion({override: [cwdCompletions]}), editorTheme ],
+    }),
+  });
+
+  document.body.appendChild(createCwdModal(cwdEditorMount));
+
   // updateHeight();
 
   Vim.defineEx("write", "w", async () => {
-    const prompt = editorInstance.state.doc.toString().trim();
-    if (!prompt || isAgentRunning.value()) return;
-    if (!sessionManager) return;
-    
-    editorInstance.dispatch({ changes: { from: 0, to: editorInstance.state.doc.length, insert: '' } });
-    isAgentRunning.next(true);
+		setTimeout(async () => {
+			if (cwdEditorInstance.hasFocus) {
+				if (!sessionManager) return;
+				const newCwd = cwdEditorInstance.state.doc.toString().trim();
+				if (!newCwd) return;
+				sessionManager.getHeader().cwd = newCwd;
+				currentCwd.next(newCwd);
+				isCwdModalOpen.next(false);
+				console.log('CWD updated to:', newCwd);
+				return;
+			}
 
-    const userMessage = createUserMessage(prompt);
-    sessionManager.appendMessage(userMessage);
-    handleAgentEvent(createEvent(EventTypes.USER_MESSAGE, { message: userMessage }));
-    await startAgentLoop(sessionManager, handleAgentEvent, currentModel.value(), thinkingMode.value());
+			if (editorInstance.hasFocus) {
+				const prompt = editorInstance.state.doc.toString().trim();
+				if (!prompt || isAgentRunning.value()) return;
+				if (!sessionManager) return;
+
+				editorInstance.dispatch({ changes: { from: 0, to: editorInstance.state.doc.length, insert: '' } });
+				isAgentRunning.next(true);
+
+				const userMessage = createUserMessage(prompt);
+				sessionManager.appendMessage(userMessage);
+				handleAgentEvent(createEvent(EventTypes.USER_MESSAGE, { message: userMessage }));
+				await startAgentLoop(sessionManager, handleAgentEvent, currentModel.value(), thinkingMode.value());
+			}
+
+		}, 10)
   });
-
-  renderingStrategy.subscribe(value => renderSession());
 
   state.currentSession.subscribe(async (path) => {
     if (!path) return;
     try {
       sessionManager = await SessionManager.load(path);
 			console.log(sessionManager.getMessages())
+      currentCwd.next(sessionManager.getHeader().cwd || DEFAULT_CWD);
       renderSession();
     } catch (e) {
       console.error("Error loading session:", e);
