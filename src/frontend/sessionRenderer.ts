@@ -294,17 +294,28 @@ const createToolCallItem = (item) => {
   const expandedToolCalls = ['div.tool-calls', { onclick: () => isOpen.next(value => !value) }];
   const minimizedToolCalls = ['div.tool-calls', { onclick: () => isOpen.next(value => !value) }];
 
-  item.tool_calls.forEach(toolCall => {
-    const args = Object.entries(JSON.parse(toolCall.arguments))
-      .map(([key, value]) => 
-        ['.tool-args', 
-          ['p.key', key],
-          ['pre.value', value],
-        ]);
+	let array = (v) => ['.array', ...v.map(value)]
+	let value = (v: any) => ['pre.value',
+		typeof v == 'string' 
+			? v 
+			: Array.isArray(v) 
+				? array(v)
+				: typeof v == 'object' && v!=null
+					? obj(v)
+					: JSON.stringify(v)
+	]
 
+	let obj = (v: object) : any => ['.object', ...Object.entries(v)
+		.map(([key, vv]) => ['.tool-args', 
+          ['p.key', key], 
+					value(vv), ])];
+
+
+  item.tool_calls.forEach(toolCall => {
+    const args = obj(JSON.parse(toolCall.arguments))
     toolCallElements[toolCall.id] = dom(['div.tool-call',
       ['div.tool-name', toolCall.name],
-      ...args
+      args
     ]);
 
     expandedToolCalls.push(toolCallElements[toolCall.id]);

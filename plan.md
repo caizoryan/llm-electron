@@ -2,12 +2,12 @@
 
 ## 1. Thinking Level Control
 
-- [ ] Add dropdown UI component to session renderer
-- [ ] Create reactive state for thinking level in frontend
+- [x] Add dropdown UI component to session renderer
+- [x] Create reactive state for thinking level in frontend
 - [x] Research how to add thinking level parameter to zAPI
-- [ ] Update `runAgentTurn` and `startAgentLoop` to accept thinking level parameter
-- [ ] Pass thinking level to zAPI request body
-- [ ] Connect frontend dropdown to agent calls
+- [x] Update `runAgentTurn` and `startAgentLoop` to accept thinking level parameter
+- [x] Pass thinking level to zAPI request body
+- [x] Connect frontend dropdown to agent calls
 
 > UI will manage thinking level state. When changed, frontend passes it to agent on next prompt. No events needed for UI updates. Session persistence not required.
 
@@ -18,20 +18,20 @@
 - [x] Configure basic options (line numbers, markdown mode, theme)
 - [x] Map keyboard shortcuts (Enter to submit, Shift+Enter for newline, Cmd/Ctrl+Enter to submit)
 - [x] Implement auto-resize behavior
-- [ ] Set up focus management (auto-focus on load and after submission)
-- [ ] Create custom autocompletion source using `fs.listFiles`
-- [ ] Trigger autocomplete on `/`, `./`, `~` characters
-- [ ] Configure syntax highlighting for markdown, JavaScript, JSON, Python
+- [x] Set up focus management (auto-focus on load and after submission)
+- [x] Create custom autocompletion source using `fs.listFiles`
+- [x] Trigger autocomplete on `/`, `./`, `~` characters
+- [x] Configure syntax highlighting for markdown, JavaScript, JSON, Python
 
 > CodeMirror will be imported as static, pre-compiled JS files for browser use—no Node.js required. No caching for autocomplete results.
 > **Completed:** Basic CodeMirror with vim mode and `:w` to submit. Auto-resize with max-height 300px. Took 25 mins.
 
 ## 3. CodeMirror for Code Blocks in Messages
 
-- [ ] Modify `md.js` to detect language in markdown code blocks
-- [ ] Replace `<pre>` code blocks with CodeMirror instances for multi-line blocks
-- [ ] Add styling for code block editors (read-only, minimal UI)
-- [ ] Ensure code blocks remain collapsible within foldable messages
+- [x] Modify `md.js` to detect language in markdown code blocks
+- [x] Replace `<pre>` code blocks with CodeMirror instances for multi-line blocks
+- [x] Add styling for code block editors (read-only, minimal UI)
+- [x] Ensure code blocks remain collapsible within foldable messages
 
 > Only multi-line `<pre>` items will get CodeMirror. Language will be detected during markdown parsing in `md.js`.
 

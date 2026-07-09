@@ -31,12 +31,12 @@ export const fs = {
     return `bytesAppended: ${Buffer.byteLength(content)}`;
   },
   
-  replaceInFile: async (path, search, replace) => {
-    const content = await fs.readFile(path);
-    const newContent = content.replace(search, replace);
-    await fs.writeFile(path, newContent);
-		
-		// TODO: Actually check if succesfully matched and replaced
+  replaceInFile: async (path, changes) => {
+    let content = await fs.readFile(path);
+    for (const { search_string, replace_string } of changes) {
+      content = content.replace(search_string, replace_string);
+    }
+    await fs.writeFile(path, content);
     return 'Successfully replaced';
   }
 };

@@ -86,18 +86,28 @@ export const appendFileTool = {
 
 export const replaceFileTool = {
   name: "replace",
-  description: "Replace a search string with a replace string in a file.",
+  description: "Replace one or more search strings in a file.",
   parameters: {
     type: "object",
     properties: {
-      file_path: { type: "string", description: "Path to the file to read." },
-      search_string: { type: "string", description: "String to search for in the file." },
-      replace_string: { type: "string", description: "String to replace the search string with." },
+      file_path: { type: "string", description: "Path to the file to modify." },
+      changes: {
+        type: "array",
+        description: "Array of replacements to apply.",
+        items: {
+          type: "object",
+          properties: {
+            search_string: { type: "string", description: "String to search for." },
+            replace_string: { type: "string", description: "String to replace it with." },
+          },
+          required: ["search_string", "replace_string"]
+        }
+      }
     },
-    required: ["file_path", "search_string", "replace_string"]
+    required: ["file_path", "changes"]
   },
-  execute: withErrorHandling(({ file_path, search_string, replace_string }, cwd) => 
-    fs.replaceInFile(resolvePath(file_path, cwd), search_string, replace_string)
+  execute: withErrorHandling(({ file_path, changes }, cwd) =>
+    fs.replaceInFile(resolvePath(file_path, cwd), changes)
   )
 };
 
