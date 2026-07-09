@@ -91,6 +91,23 @@ let safe_parse = (content) => {
 };
 
 let debug_print = false;
+export function highlightCode(code, lang = 'javascript') {
+	lang === 'js' ? lang = 'javascript' : null;
+	const pre = document.createElement('pre');
+	const codeEl = document.createElement('code');
+	if (lang) {
+		codeEl.classList.add(`language-${lang}`);
+		pre.classList.add(`language-${lang}`);
+	}
+	if (lang && Prism.languages[lang]) {
+		codeEl.innerHTML = Prism.highlight(code, Prism.languages[lang], lang);
+	} else {
+		codeEl.textContent = code;
+	}
+	pre.appendChild(codeEl);
+	return pre;
+}
+
 export const MD = (content) => {
 	let tree, body;
 	tree = safe_parse(content);
