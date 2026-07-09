@@ -6,6 +6,7 @@ import { modalPopUp } from './modal.js';
 import { systemPrompt } from '../agent/systemPrompt.js';
 import { SessionManager } from '../agent/sessionManager.js';
 import { createSystemMessage } from '../agent/sessionFormat.js';
+import { state } from './state.js';
 
 
 // import { MD } from './lib/md.js';
@@ -17,22 +18,7 @@ import { createSystemMessage } from '../agent/sessionFormat.js';
 // ===============================
 const SESSIONS_DIRECTORY = '/Users/aaryan/.llm_sessions/';
 const DEFAULT_SYSTEM_PROMPT = systemPrompt;
-const DEFAULT_CWD = '/Users/aaryan/';
 
-// ===============================
-// STATE MANAGEMENT
-// ===============================
-export const state = {
-  currentSession: reactive(''),
-  parsedSession: '',
-  sessionManager: null as SessionManager | null,
-  isAgentRunning: reactive(false),
-  isCwdModalOpen: reactive(false),
-  currentCwd: reactive(DEFAULT_CWD),
-  currentModel: reactive('kimi-k2.7-code'),
-  thinkingMode: reactive('low'),
-  renderingStrategy: reactive('MD')
-};
 
 // ===============================
 // FILE OPERATIONS
@@ -98,7 +84,7 @@ const sessionBrowser = dom(['.session',
 // ===============================
 // INITIALIZATION
 // ===============================
-const sessionRenderer = createSessionRenderer(state);
+const sessionRenderer = createSessionRenderer();
 
 document.body.appendChild(sessionBrowser);
 document.body.appendChild(sessionRenderer);
