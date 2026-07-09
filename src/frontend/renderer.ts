@@ -21,7 +21,7 @@ const DEFAULT_SYSTEM_PROMPT = systemPrompt;
 // ===============================
 // STATE MANAGEMENT
 // ===============================
-const appState = {
+export const state = {
   currentSession: reactive(''),
   parsedSession: ''
 };
@@ -42,7 +42,7 @@ const createNewSession = async (sessionName) => {
     createSystemMessage(DEFAULT_SYSTEM_PROMPT),
   ]);
   loadSessionList();
-  appState.currentSession.next(manager.getPath());
+  state.currentSession.next(manager.getPath());
 };
 
 const renderSessionList = (listElement, fileList) => {
@@ -51,7 +51,7 @@ const renderSessionList = (listElement, fileList) => {
   
   files.forEach(file => {
     const sessionItem = dom(['li', {
-      onclick: () => appState.currentSession.next(SESSIONS_DIRECTORY + file),
+      onclick: () => state.currentSession.next(SESSIONS_DIRECTORY + file),
     }, file]);
     listElement.appendChild(sessionItem);
   });
@@ -90,7 +90,7 @@ const sessionBrowser = dom(['.session',
 // ===============================
 // INITIALIZATION
 // ===============================
-const sessionRenderer = createSessionRenderer(appState);
+const sessionRenderer = createSessionRenderer(state);
 
 document.body.appendChild(sessionBrowser);
 document.body.appendChild(sessionRenderer);
