@@ -35,14 +35,14 @@ const MessageRole = {
 // ===============================
 // STATE MANAGEMENT
 // ===============================
-let sessionManager: SessionManager | null = null;
-const isAgentRunning = reactive(false);
-const isCwdModalOpen = reactive(false)
-const DEFAULT_CWD = '/Users/aaryan/'
-const currentCwd = reactive('/Users/aaryan/')
-const currentModel = reactive('kimi-k2.7-code');
-const thinkingMode = reactive('low');
-const renderingStrategy = reactive(RenderingStrategy.MD);
+let sessionManager = state.sessionManager;
+const isAgentRunning = state.isAgentRunning;
+const isCwdModalOpen = state.isCwdModalOpen;
+const currentCwd = state.currentCwd;
+const currentModel = state.currentModel;
+const thinkingMode = state.thinkingMode;
+const renderingStrategy = state.renderingStrategy;
+
 const toolCallElements = new Map();
 
 const THINKING_STATES = [ 'low', 'medium', 'high' ];
@@ -317,6 +317,29 @@ const createToolCallItem = (item) => {
       ['div.tool-name', toolCall.name],
       args
     ]);
+
+    if (toolCall.name === 'render-html') {
+      const parsedArgs = JSON.parse(toolCall.arguments);
+      const funcStr = parsedArgs.func;
+      const wrapper = dom(['div.render-html-container', { style: 'border: 1px solid currentColor; padding: 8px; margin: 4px 0;' }]);
+      try {
+        // eslint-disable-next-line no-eval
+        const fn = eval(funcStr);
+        if (typeof fn === 'function') {
+          const el = fn();
+          if (el instanceof HTMLElement) {
+            wrapper.appendChild(el);
+          } else {
+            wrapper.appendChild(dom(['div', { style: 'color: red;' }, 'Error: function did not return an HTMLElement']));
+          }
+        } else {
+          wrapper.appendChild(dom(['div', { style: 'color: red;' }, 'Error: eval did not produce a function']));
+        }
+      } catch (err) {
+        wrapper.appendChild(dom(['div', { style: 'color: red;' }, 'Error: ' + err.message]));
+      }
+      toolCallElements[toolCall.id].appendChild(wrapper);
+    }
 
     expandedToolCalls.push(toolCallElements[toolCall.id]);
     minimizedToolCalls.push(createMinimizedToolCall(toolCall));
@@ -604,6 +627,7 @@ const createSessionRenderer = (state) => {
     if (!path) return;
     try {
       sessionManager = await SessionManager.load(path);
+      state.sessionManager = sessionManager;
 			console.log(sessionManager.getMessages())
       currentCwd.next(sessionManager.getHeader().cwd || DEFAULT_CWD);
       renderSession();
@@ -617,4 +641,4 @@ const createSessionRenderer = (state) => {
   return sessionRenderer;
 };
 
-export { createSessionRenderer, renderingStrategy };
+export { createSessionRenderer };
