@@ -1,6 +1,6 @@
 import { dom } from './lib/dom.js';
 import { memo, reactive } from './lib/chowk.js';
-import { MD } from './lib/md.js';
+import { MD, highlightCode } from './lib/md.js';
 import { startAgentLoop } from '../agent/agent.js'
 import { createEvent, EventTypes } from '../agent/events.js'
 import { models } from '../models.js'
@@ -282,7 +282,8 @@ const createMinimizedToolCall = (toolCall) => {
 
 const createToolCallItem = (item) => {
   const isOpen = reactive(false);
-  const expandedToolCalls = ['div.tool-calls', { onclick: () => isOpen.next(value => !value) }];
+  const expandedToolCalls = ['div.tool-calls', //{ onclick: () => isOpen.next(value => !value) }
+	];
   const minimizedToolCalls = ['div.tool-calls', { onclick: () => isOpen.next(value => !value) }];
 
 	let array = (v) => ['.array', ...v.map(value)]
@@ -312,6 +313,44 @@ const createToolCallItem = (item) => {
     if (toolCall.name === 'render-html') {
       const parsedArgs = JSON.parse(toolCall.arguments);
       const funcStr = parsedArgs.func;
+      const MAX_LINES = 6;
+      const funcLines = funcStr.split('\n');
+
+      // Rebuild args with highlighted + collapsible func
+      const existingArgs = toolCallElements[toolCall.id].querySelectorAll(':scope > .object > .tool-args');
+      const argsObj = JSON.parse(toolCall.arguments);
+      const argEntries = Object.entries(argsObj).map(([key, val]: [string, any]) => {
+        if (key === 'func') {
+					const isExpanded = reactive(false);
+					const remaining = funcLines.length - MAX_LINES;
+					return ['.tool-args',
+						['p.key', key],
+						memo(() => {
+							// return highlightCode(funcStr, 'javascript')
+							const visible = isExpanded.value()
+								? funcStr
+								: funcLines.slice(0, MAX_LINES).join('\n');
+							let ret = highlightCode(visible, 'javascript')
+							console.log(ret)
+							return ret;
+						}, [isExpanded]),
+						memo(() => isExpanded.value()
+							? ['div.func-collapse-toggle', { onclick: () => isExpanded.next(false) }, '(show fewer lines...)']
+							: ['div.func-collapse-toggle', { onclick: () => isExpanded.next(true) }, `(show ${remaining} more lines...)`],
+						[isExpanded]),
+					];
+        }
+        return ['.tool-args', ['p.key', key], value(val)];
+      });
+
+      // Replace existing args with custom ones
+      existingArgs.forEach(el => el.remove());
+      const objectEl = toolCallElements[toolCall.id].querySelector(':scope > .object');
+      argEntries.forEach(entry => {
+				console.log(entry)
+        objectEl.appendChild(dom(entry));
+      });
+
       const wrapper = dom(['div.render-html-container', { style: 'border: 1px solid currentColor; padding: 8px; margin: 4px 0;' }]);
       try {
         // eslint-disable-next-line no-eval
@@ -523,19 +562,20 @@ const renderSession = () => {
   sessionRenderer.appendChild(sessionMessagesContainer);
 
   const messages = state.sessionManager ? state.sessionManager.getMessages() : [];
+	console.log("Rendering", messages, sessionMessagesContainer, state.sessionManager)
   messages.forEach(message => sessionMessagesContainer.appendChild(renderSessionItem(message)));
   
 	// TODO: This shouldn't be happening, make it so the prompt editor is not connected to session?
   sessionMessagesContainer.appendChild(promptBox);
 };
 
-const createSessionRenderer = (state) => {
+const createSessionRenderer = () => {
   document.addEventListener('keydown', async (event) => {
     if ((event.metaKey || event.ctrlKey) && event.key === 's') {
       event.preventDefault();
       if (state.sessionManager) {
         try {
-          await 5tate.sessionManager.write();
+          await state.sessionManager.write();
           console.log('Session saved to', state.sessionManager.getPath());
         } catch (err) {
           console.error('Failed to save session:', err);
@@ -618,8 +658,7 @@ const createSessionRenderer = (state) => {
     if (!path) return;
     try {
       state.sessionManager = await SessionManager.load(path);
-      state.sessionManager = state.sessionManager;
-			console.log(state.sessionManager.getMessages())
+			console.log(state.sessionManager.getMessages(), state.sessionManager)
       state.currentCwd.next(state.sessionManager.getHeader().cwd || DEFAULT_CWD);
       renderSession();
     } catch (e) {
