@@ -111,10 +111,41 @@ export const replaceFileTool = {
   )
 };
 
+export const renderHtmlTool = {
+  name: "render-html",
+  description: "Render an HTML element by providing a JavaScript function as a string. The function must return an HTMLElement. Example: (function(){ var el = document.createElement('div'); el.textContent = 'hello'; return el; })",
+  parameters: {
+    type: "object",
+    properties: {
+      func: {
+        type: "string",
+        description: "A JavaScript function as a string that returns an HTMLElement."
+      }
+    },
+    required: ["func"]
+  },
+  execute: async ({func}) => {
+      try {
+        // eslint-disable-next-line no-eval
+        const fn = eval(func);
+
+        if (typeof fn === 'function') {
+          const el = fn();
+          if (el instanceof HTMLElement) { 
+						return "successfully renderers"
+					}
+				}
+			} catch (err) {
+				return err.message
+			}
+	}
+}
+
 export let tools = [
   readFileTool,
   listFilesTool,
   writeFileTool,
   appendFileTool,
-  replaceFileTool
+  replaceFileTool,
+  renderHtmlTool
 ];
