@@ -110,7 +110,6 @@ export let dom = (tag, ...contents) => {
             : document.createElement(el);
 
 
-	if (classes.includes("list-item")){console.log("items",contents)}
 	classes.forEach((c) => doc.classList.add(c))
 	id ? doc.id = id : null
 
@@ -173,6 +172,14 @@ export let dom = (tag, ...contents) => {
 					}
 
 					nodes=newnodes
+				})
+			}
+			else if (isNode(v)) {
+				let el = v
+				doc.appendChild(el)
+				e.subscribe(vv => {
+					v.replaceWith(vv) 
+					v = vv
 				})
 			}
 
