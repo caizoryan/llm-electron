@@ -248,7 +248,7 @@ export async function runAgentTurn(sessionManager, pipe, model, thinkingMode = '
         }));
 
         try {
-          const result = await toolExecutor(sessionToolCall);
+          const result = await toolExecutor(sessionToolCall, sessionManager);
           const toolResultMsg = createToolResultMessage(
             sessionToolCall.id,
             sessionToolCall.name,

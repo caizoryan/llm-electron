@@ -8,6 +8,14 @@ const withErrorHandling = (fn) => async (...args) => {
   }
 };
 
+/** Resolve a relative path against cwd; absolute paths pass through. */
+const resolvePath = (p, cwd) => {
+  if (!p) return p;
+  if (p.startsWith('/')) return p;
+  if (p.startsWith('./')) return cwd + '/' + p.slice(2);
+  return cwd + '/' + p;
+};
+
 export const createTool = ({ name, description, parameters }) => ({
   type: 'function',
   function: { name, description, parameters }
@@ -34,7 +42,7 @@ export const readFileTool = {
     properties: { file_path: { type: "string", description: "Path to the file to read." } },
     required: ["file_path"]
   },
-  execute: withErrorHandling(({ file_path }) => fs.readFile(file_path))
+  execute: withErrorHandling(({ file_path }, cwd) => fs.readFile(resolvePath(file_path, cwd)))
 };
 
 export const writeFileTool = {
@@ -48,7 +56,7 @@ export const writeFileTool = {
     },
     required: ["file_path", "content"]
   },
-  execute: withErrorHandling(({ file_path, content }) => fs.writeFile(file_path, content))
+  execute: withErrorHandling(({ file_path, content }, cwd) => fs.writeFile(resolvePath(file_path, cwd), content))
 };
 
 export const listFilesTool = {
@@ -59,7 +67,7 @@ export const listFilesTool = {
     properties: { path: { type: "string", description: "Path to the directory to list." } },
     required: ["path"]
   },
-  execute: withErrorHandling(({ path }) => fs.listFiles(path))
+  execute: withErrorHandling(({ path }, cwd) => fs.listFiles(resolvePath(path, cwd)))
 };
 
 export const appendFileTool = {
@@ -73,7 +81,7 @@ export const appendFileTool = {
     },
     required: ["file_path", "content"]
   },
-  execute: withErrorHandling(({ file_path, content }) => fs.appendFile(file_path, content))
+  execute: withErrorHandling(({ file_path, content }, cwd) => fs.appendFile(resolvePath(file_path, cwd), content))
 };
 
 export const replaceFileTool = {
@@ -88,8 +96,8 @@ export const replaceFileTool = {
     },
     required: ["file_path", "search_string", "replace_string"]
   },
-  execute: withErrorHandling(({ file_path, search_string, replace_string }) => 
-    fs.replaceInFile(file_path, search_string, replace_string)
+  execute: withErrorHandling(({ file_path, search_string, replace_string }, cwd) => 
+    fs.replaceInFile(resolvePath(file_path, cwd), search_string, replace_string)
   )
 };
 

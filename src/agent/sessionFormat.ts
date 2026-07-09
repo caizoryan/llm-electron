@@ -50,12 +50,13 @@ export const generateId = (): string =>
 
 export const createSessionHeader = (
   id: string,
+  cwd: string = CWD,
   parentSession?: string
 ): SessionHeader => ({
   type: "session",
   id,
   timestamp: Date.now(),
-  cwd: CWD,
+  cwd,
   parentSession,
 });
 

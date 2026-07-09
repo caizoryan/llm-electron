@@ -4,7 +4,7 @@ import { tools } from './tools.js'
 const REQUIRED_ARGS=tools.reduce((acc:any,e)=>(acc[e.name]=e.parameters.required, acc),{})
 const TOOL_FUNCTIONS=tools.reduce((acc:any,e)=>(acc[e.name]=e.execute, acc),{})
 
-function callFunction(toolCall: ToolCall) {
+function callFunction(toolCall: ToolCall, cwd: string) {
   const name = toolCall.name
   let args = toolCall.arguments
   if (typeof args == 'string') args = JSON.parse(args)
@@ -23,16 +23,17 @@ function callFunction(toolCall: ToolCall) {
     }
   }
 
-  return TOOL_FUNCTIONS[name](args)
+  return TOOL_FUNCTIONS[name](args, cwd)
 }
 
 // ---------------------------------------------------------------------------
 // Tool executor — accepts a session-format ToolCall
 // ---------------------------------------------------------------------------
 
-export const toolExecutor = async (sessionToolCall) => {
+export const toolExecutor = async (sessionToolCall, sessionManager) => {
   try {
-    const result = await callFunction(sessionToolCall);
+    const cwd = sessionManager.getHeader().cwd;
+    const result = await callFunction(sessionToolCall, cwd);
     
     if (result.success) {
       return result.content;
