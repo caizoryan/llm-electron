@@ -280,6 +280,27 @@ const createMinimizedToolCall = (toolCall) => {
   ]);
 };
 
+const createCollapsibleFuncArg = (funcStr: string) => {
+  const MAX_LINES = 6;
+  const funcLines = funcStr.split('\n');
+  const isExpanded = reactive(false);
+  const remaining = funcLines.length - MAX_LINES;
+
+  return ['.tool-args',
+    ['p.key', 'func'],
+    memo(() => {
+      const visible = isExpanded.value()
+        ? funcStr
+        : funcLines.slice(0, MAX_LINES).join('\n');
+      return highlightCode(visible, 'javascript');
+    }, [isExpanded]),
+    memo(() => isExpanded.value()
+      ? ['div.func-collapse-toggle', { onclick: () => isExpanded.next(false) }, '(show fewer lines...)']
+      : ['div.func-collapse-toggle', { onclick: () => isExpanded.next(true) }, `(show ${remaining} more lines...)`],
+    [isExpanded]),
+  ];
+};
+
 const createToolCallItem = (item) => {
   const isOpen = reactive(false);
   const expandedToolCalls = ['div.tool-calls', //{ onclick: () => isOpen.next(value => !value) }
@@ -310,35 +331,17 @@ const createToolCallItem = (item) => {
       args
     ]);
 
+		// TODO: need to refactor this while shit, absolte mess
     if (toolCall.name === 'render-html') {
       const parsedArgs = JSON.parse(toolCall.arguments);
       const funcStr = parsedArgs.func;
-      const MAX_LINES = 6;
-      const funcLines = funcStr.split('\n');
 
       // Rebuild args with highlighted + collapsible func
       const existingArgs = toolCallElements[toolCall.id].querySelectorAll(':scope > .object > .tool-args');
       const argsObj = JSON.parse(toolCall.arguments);
       const argEntries = Object.entries(argsObj).map(([key, val]: [string, any]) => {
         if (key === 'func') {
-					const isExpanded = reactive(false);
-					const remaining = funcLines.length - MAX_LINES;
-					return ['.tool-args',
-						['p.key', key],
-						memo(() => {
-							// return highlightCode(funcStr, 'javascript')
-							const visible = isExpanded.value()
-								? funcStr
-								: funcLines.slice(0, MAX_LINES).join('\n');
-							let ret = highlightCode(visible, 'javascript')
-							console.log(ret)
-							return ret;
-						}, [isExpanded]),
-						memo(() => isExpanded.value()
-							? ['div.func-collapse-toggle', { onclick: () => isExpanded.next(false) }, '(show fewer lines...)']
-							: ['div.func-collapse-toggle', { onclick: () => isExpanded.next(true) }, `(show ${remaining} more lines...)`],
-						[isExpanded]),
-					];
+          return createCollapsibleFuncArg(funcStr);
         }
         return ['.tool-args', ['p.key', key], value(val)];
       });
@@ -347,7 +350,6 @@ const createToolCallItem = (item) => {
       existingArgs.forEach(el => el.remove());
       const objectEl = toolCallElements[toolCall.id].querySelector(':scope > .object');
       argEntries.forEach(entry => {
-				console.log(entry)
         objectEl.appendChild(dom(entry));
       });
 
@@ -357,6 +359,63 @@ const createToolCallItem = (item) => {
         const fn = eval(funcStr);
         if (typeof fn === 'function') {
           const el = fn();
+          if (el instanceof HTMLElement) {
+            wrapper.appendChild(el);
+          } else {
+            wrapper.appendChild(dom(['div', { style: 'color: red;' }, 'Error: function did not return an HTMLElement']));
+          }
+        } else {
+          wrapper.appendChild(dom(['div', { style: 'color: red;' }, 'Error: eval did not produce a function']));
+        }
+      } catch (err) {
+        wrapper.appendChild(dom(['div', { style: 'color: red;' }, 'Error: ' + err.message]));
+      }
+      toolCallElements[toolCall.id].appendChild(wrapper);
+    }
+
+    if (toolCall.name === 'render-interactive-question') {
+      const parsedArgs = JSON.parse(toolCall.arguments);
+      const funcStr = parsedArgs.func;
+
+      // Rebuild args with highlighted + collapsible func
+      const existingArgs = toolCallElements[toolCall.id].querySelectorAll(':scope > .object > .tool-args');
+      const argsObj = JSON.parse(toolCall.arguments);
+      const argEntries = Object.entries(argsObj).map(([key, val]: [string, any]) => {
+        if (key === 'func') {
+          return createCollapsibleFuncArg(funcStr);
+        }
+        return ['.tool-args', ['p.key', key], value(val)];
+      });
+
+      // Replace existing args with custom ones
+      existingArgs.forEach(el => el.remove());
+      const objectEl = toolCallElements[toolCall.id].querySelector(':scope > .object');
+      argEntries.forEach(entry => {
+        objectEl.appendChild(dom(entry));
+      });
+
+      const wrapper = dom(['div.render-html-container', { style: 'border: 1px solid currentColor; padding: 8px; margin: 4px 0;' }]);
+      try {
+        // eslint-disable-next-line no-eval
+        const fn = eval(funcStr);
+        if (typeof fn === 'function') {
+          const library = { dom, reactive, memo };
+          const callback = (answer: any) => {
+            if (typeof answer !== 'string') {
+              console.error('render-interactive-question callback expected a string, got:', typeof answer);
+              return;
+            }
+            if (!editorInstance) {
+              console.error('render-interactive-question: prompt editor not available');
+              return;
+            }
+            const docLength = editorInstance.state.doc.length;
+            editorInstance.dispatch({
+              changes: { from: docLength, to: docLength, insert: answer }
+            });
+          };
+
+          const el = fn(library, callback);
           if (el instanceof HTMLElement) {
             wrapper.appendChild(el);
           } else {

@@ -141,11 +141,78 @@ export const renderHtmlTool = {
 	}
 }
 
+export const renderInteractiveQuestionTool = {
+  name: "render-interactive-question",
+  description: `Render an interactive HTML question in the chat.
+
+Provide a JavaScript function as a string. The function receives two arguments:
+- library: an object exposing { dom, reactive, memo }
+- callback: a function you call with a string answer when the user submits
+
+The function must return an HTMLElement. The callback validates the answer is a string and appends it to the user's prompt box for them to send.
+
+Example 1 - dom() only:
+(function(lib, callback) {
+  var input = lib.dom(['input', { placeholder: 'Type a color' }]);
+  var button = lib.dom(['button', {
+    onclick: function() { callback('The chosen color is: ' + input.value); }
+  }, 'Send']);
+  return lib.dom(['div', input, button]);
+})
+
+Example 2 - reactive():
+(function(lib, callback) {
+  var count = lib.reactive(0);
+  return lib.dom(['div',
+    lib.memo(function() { return ['span', 'Count: ' + count.value()]; }, [count]),
+    ['button', { onclick: function() { count.next(function(v) { return v + 1; }); } }, '+'],
+    ['button', { onclick: function() { callback('Final count: ' + count.value()); } }, 'Submit']
+  ]);
+})
+
+Example 3 - memo():
+(function(lib, callback) {
+  var width = lib.reactive(5);
+  var height = lib.reactive(5);
+  var area = lib.memo(function() {
+    return 'Area = ' + (width.value() * height.value());
+  }, [width, height]);
+  return lib.dom(['div',
+    ['input', { type: 'number', value: '5', oninput: function(e) { width.next(function() { return parseInt(e.target.value); }); } }],
+    ['input', { type: 'number', value: '5', oninput: function(e) { height.next(function() { return parseInt(e.target.value); }); } }],
+    lib.memo(function() { return ['p', area.value()]; }, [area]),
+    ['button', { onclick: function() { callback('Dimensions: ' + width.value() + ' x ' + height.value()); } }, 'Send']
+  ]);
+})`,
+  parameters: {
+    type: "object",
+    properties: {
+      func: {
+        type: "string",
+        description: "A JavaScript function as a string. Signature: (library, callback) => HTMLElement. library = { dom, reactive, memo }. callback = (answer: string) => void."
+      }
+    },
+    required: ["func"]
+  },
+  execute: async ({ func }) => {
+    try {
+      // eslint-disable-next-line no-eval
+      const fn = eval(func);
+      if (typeof fn === 'function') {
+        return "interactive question rendered";
+      }
+    } catch (err) {
+      return err.message;
+    }
+  }
+};
+
 export let tools = [
   readFileTool,
   listFilesTool,
   writeFileTool,
   appendFileTool,
   replaceFileTool,
-  renderHtmlTool
+  renderHtmlTool,
+  renderInteractiveQuestionTool
 ];
