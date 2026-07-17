@@ -384,6 +384,31 @@ button:active {
 	max-width: 700px;
 }
 
+.prompt-controls {
+	display: flex;
+	align-items: center;
+	gap: 0.5em;
+	margin-top: 0.5em;
+}
+
+.agent-running-indicator {
+	width: 10px;
+	height: 10px;
+	background: var(--bg);
+	border-radius: 50%;
+	display: none;
+	animation: blink 1s infinite;
+}
+
+.agent-running-indicator.active {
+	display: inline-block;
+}
+
+@keyframes blink {
+	0%, 100% { opacity: 1; }
+	50% { opacity: 0; }
+}
+
 .prompt-editor {
 	max-height: 300px;
 	overflow-y: auto;
